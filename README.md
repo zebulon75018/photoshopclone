@@ -2,6 +2,8 @@
 
 *(Version française : [README.fr.md](README.fr.md))*
 
+![screen shot](/shot1.png)
+
 A raster image editor in C++17: layers, masks, selections, filters, color adjustments, text, undo history,
 a tabbed/dockable workspace, and keyboard shortcuts matching Photoshop's.
 
@@ -76,6 +78,8 @@ register it in `ToolManager`, add an icon in `Icons.cpp`.
 `Space` temporary pan · `Alt` eyedropper (brush) / source point (clone) · `Shift+click` straight line ·
 `Ctrl+N/O/S/Shift+S/W` · `Ctrl+Z` / `Ctrl+Shift+Z` · `Ctrl+X/C/V` · `Ctrl+A/D/Shift+D/Shift+I` · `Ctrl+J` · `Ctrl+Shift+N` · `Ctrl+E` ·
 `Ctrl+T` · `Ctrl+L/M/U/B/I` · `Ctrl+Shift+U/L` · `Ctrl+F` · `Ctrl+0/1/±` · `Alt+Backspace` / `Ctrl+Backspace` · `Tab` · `F1` (full list, in-app).
+
+![screen shot](/shot1.png)
 
 ## Selection Transform (tool in the `M` group, or the Selection menu)
 Handles surround the selection: dragging a handle scales it (Shift: keep proportions, Alt: from the center), dragging
