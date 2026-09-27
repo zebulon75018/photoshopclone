@@ -3,6 +3,8 @@
 Éditeur raster en C++17 : calques, masques, sélections, filtres, réglages colorimétriques, texte, historique,
 espace de travail à onglets/panneaux, raccourcis clavier identiques à Photoshop.
 
+![screen shot](/shot1.png)
+
 ## Compilation
 
 ```bash
@@ -68,6 +70,8 @@ aperçu et undo sont automatiques. **Ajouter un outil** : dériver de `Tool`, l'
 `Espace` main temporaire · `Alt` pipette (pinceau) / source (tampon) · `Maj+clic` ligne droite ·
 `Ctrl+N/O/S/Maj+S/W` · `Ctrl+Z` / `Ctrl+Maj+Z` · `Ctrl+X/C/V` · `Ctrl+A/D/Maj+D/Maj+I` · `Ctrl+J` · `Ctrl+Maj+N` · `Ctrl+E` ·
 `Ctrl+T` · `Ctrl+L/M/U/B/I` · `Ctrl+Maj+U/L` · `Ctrl+F` · `Ctrl+0/1/±` · `Alt+Retour arrière` / `Ctrl+Retour arrière` · `Tab` · `F1` (liste complète).
+
+![screen shot](/shot2.png)
 
 ## Transformation de la sélection (outil du groupe `M`, ou menu Sélection)
 Des poignées entourent la sélection : glisser une poignée = échelle (Maj : proportionnel, Alt : depuis le centre), glisser
