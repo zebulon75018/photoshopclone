@@ -1,105 +1,108 @@
-# PhotoClone — un éditeur d'images façon Photoshop (Qt5 + OpenCV, Linux)
+# PhotoClone — a Photoshop-like image editor (Qt5 + OpenCV, Linux)
 
-Éditeur raster en C++17 : calques, masques, sélections, filtres, réglages colorimétriques, texte, historique,
-espace de travail à onglets/panneaux, raccourcis clavier identiques à Photoshop.
+*(Version française : [README.fr.md](README.fr.md))*
 
+A raster image editor in C++17: layers, masks, selections, filters, color adjustments, text, undo history,
+a tabbed/dockable workspace, and keyboard shortcuts matching Photoshop's.
 
-![screen shot](/shot1.png)
+> **Note on the UI language**: the application's menus, tool names, and messages are currently in French
+> (the person this was originally built for works in French). The code itself — identifiers, comments — is
+> in English/French mixed by module (see below); this README describes the English concepts with the French
+> UI labels quoted where it helps you find them in the app.
 
-
-
-## Compilation
+## Building
 
 ```bash
 sudo apt install build-essential cmake ninja-build qtbase5-dev libqt5svg5-dev libopencv-dev
 cmake -S . -B build -G Ninja
 cmake --build build
-./build/PhotoClone [image ...]          # ou glisser-déposer des fichiers dans la fenêtre
-QT_QPA_PLATFORM=offscreen ./build/smoke_test   # test automatisé (moteur + outils + historique + interface)
+./build/PhotoClone [image ...]          # or drag-and-drop files onto the window
+QT_QPA_PLATFORM=offscreen ./build/smoke_test   # automated test (engine + tools + history + UI)
 ```
-Testé avec Qt 5.15 / OpenCV 4.6 / GCC 13 (Ubuntu 24.04). OpenMP est utilisé s'il est disponible.
+Tested with Qt 5.15 / OpenCV 4.6 / GCC 13 (Ubuntu 24.04). OpenMP is used when available.
 
 ## Architecture
 
 ```
 src/
-├─ core/        MODÈLE (aucune dépendance à l'interface, sauf QImage/QPainter pour le texte)
-│  ├─ Document        pile de calques, sélection, image composite en cache (recomposition par zones), QUndoStack
-│  ├─ Layer           BGRA 8 bits + masque 8 bits + propriétés (opacité, fusion, visibilité, verrou) + texte éditable
-│  ├─ BlendModes      18 modes de fusion (séparables et non séparables, formules W3C)
-│  ├─ Selection       masques de sélection : formes, baguette magique, combinaison, contour progressif, contours
-│  ├─ Commands        PixelCommand (différentiel), LayerStateCommand, StructureCommand, SelectionCommand
-│  ├─ Operations      toutes les opérations "métier" (calques, image, sélection, presse-papiers…) = 1 entrée d'historique
-│  ├─ ImageIO         PNG/JPEG/TIFF/WebP/BMP/PPM + projet natif .pcl (calques, masques, textes conservés)
-│  └─ Workspace       état partagé : couleurs PP/AP, réglages des outils, vue courante
-├─ effects/     Effect = fonction pure cv::Mat→cv::Mat + description déclarative des paramètres
-│  ├─ Filters         27 filtres          ├─ Adjustments   16 réglages (niveaux, courbes, teinte/sat…)
-│  └─ EffectRegistry  l'UI (dialogue + aperçu en direct) est générée automatiquement depuis les ParamDef
-├─ tools/       patron Stratégie : chaque outil reçoit des ToolEvent (coordonnées image) et dessine son overlay
-│  ├─ Tool / ToolManager (groupes d'outils, Maj+touche pour alterner)
-│  ├─ TransformBox    cadre interactif (déplacer / échelle par 8 poignées / rotation), partagé par :
-│  │    TransformTool (pixels, Ctrl+T) et SelectionTransformTool (contour de la sélection seul)
-│  ├─ BrushEngine     moteur de tampons partagé (pinceau, crayon, gomme, clone, flou, netteté, doigt, densité)
-│  ├─ FloatingContent contenu "soulevé" partagé par Déplacement et Transformation manuelle
+├─ core/        MODEL (no UI dependency, except QImage/QPainter for text rendering)
+│  ├─ Document        layer stack, selection, cached composite image (region-based recompositing), QUndoStack
+│  ├─ Layer           8-bit BGRA + 8-bit mask + properties (opacity, blend mode, visibility, lock) + editable text
+│  ├─ BlendModes      18 blend modes (separable and non-separable, W3C formulas)
+│  ├─ Selection       selection masks: shapes, magic wand, combination, feathering, contours
+│  ├─ Commands        PixelCommand (diff-based), LayerStateCommand, StructureCommand, SelectionCommand
+│  ├─ Operations      all "business" operations (layers, image, selection, clipboard…) = 1 undo entry each
+│  ├─ ImageIO         PNG/JPEG/TIFF/WebP/BMP/PPM + native .pcl project format (keeps layers, masks, text)
+│  └─ Workspace       shared state: foreground/background color, tool settings, current view
+├─ effects/     Effect = a pure cv::Mat→cv::Mat function + a declarative description of its parameters
+│  ├─ Filters         27 filters          ├─ Adjustments   16 color adjustments (levels, curves, hue/sat…)
+│  └─ EffectRegistry  the UI (dialog + live preview) is generated automatically from the ParamDef list
+├─ tools/       Strategy pattern: each tool receives ToolEvents (image coordinates) and draws its own overlay
+│  ├─ Tool / ToolManager (tool groups, Shift+key to cycle within a group)
+│  ├─ TransformBox    interactive frame (move / scale via 8 handles / rotate), shared by:
+│  │    TransformTool (pixels, Ctrl+T) and SelectionTransformTool (selection outline + content)
+│  ├─ BrushEngine     shared stamping engine (brush, pencil, eraser, clone, blur, sharpen, smudge, dodge/burn)
+│  ├─ FloatingContent "lifted" content shared by the Move tool and Free Transform
 │  └─ Selection/Paint/Move/Other Tools
-└─ ui/          MainWindow, CanvasView (zoom/pan/damier/fourmis), OptionsBar, ToolBox, panneaux, dialogues, thème
-   └─ MovableDialog   dialogues incorporés et déplaçables dans la fenêtre principale (voir ci-dessous)
+└─ ui/          MainWindow, CanvasView (zoom/pan/checkerboard/marching ants), OptionsBar, ToolBox, panels, dialogs, theme
+   └─ MovableDialog   dialogs embedded and draggable inside the main window (see below)
 ```
 
-**Historique** : les commandes conservent des en-têtes `cv::Mat` partagés (pas de copie) ; seuls les traits de pinceau
-stockent un différentiel rectangulaire. L'invariant (pile linéaire ⇒ un tampon n'est modifié sur place que s'il est l'état
-courant) est vérifié par `smoke_test` : annuler tout puis refaire tout redonne des images identiques au pixel près.
+**Undo history**: commands keep shared `cv::Mat` headers (no pixel copy); only brush strokes store a rectangular
+diff. The invariant (linear undo stack ⇒ a buffer is only ever mutated in place while it is the current state) is
+checked by `smoke_test`: undoing everything then redoing everything yields pixel-identical images.
 
-**Ajouter un filtre** : une entrée `R.add("filter.x", "Nom…", "Catégorie", {P::Int(...)}, lambda)` dans `Filters.cpp` — menu, dialogue,
-aperçu et undo sont automatiques. **Ajouter un outil** : dériver de `Tool`, l'ajouter dans `ToolManager`, icône dans `Icons.cpp`.
+**Adding a filter**: one entry `R.add("filter.x", "Name…", "Category", {P::Int(...)}, lambda)` in `Filters.cpp` —
+menu entry, dialog, live preview and undo are all generated automatically. **Adding a tool**: derive from `Tool`,
+register it in `ToolManager`, add an icon in `Icons.cpp`.
 
-## Fonctionnalités
+## Features
 
-| Domaine | Contenu |
+| Area | Contents |
 |---|---|
-| Outils | Déplacement, Sélection rect./ellipse, Lasso, Lasso polygonal, Baguette magique, Recadrage, Pipette, Pinceau, Crayon, Gomme, Tampon de duplication, Dégradé (5 types), Pot de peinture, Goutte d'eau, Netteté, Doigt, Densité −/+, Texte, Formes, Main, Zoom, Transformation manuelle |
-| Sélection | Nouvelle / ajouter (Maj) / soustraire (Alt) / intersection, contour progressif, agrandir, contracter, lisser, inverser, resélectionner, fourmis marchantes, **Transformation de la sélection** (agrandir / réduire / pivoter / déplacer le contour sans toucher aux pixels, saisie numérique L/H/angle) |
-| Calques | Nouveau, dupliquer, supprimer, réordonner (glisser-déposer), fusion (bas / visibles / aplatir), 18 modes, opacité, verrou, visibilité, masques de fusion (peinture sur masque), calques texte éditables, calque par copier/couper |
-| Image | Taille, zone de travail (ancrage), recadrage, rotations, miroirs |
-| Colorimétrie | Luminosité/contraste, niveaux, courbes (RVB+canaux), exposition, teinte/saturation, vibrance, balance des couleurs, N&B, filtre photo, ombres/hautes lumières, négatif, désaturation, seuil, isohélie, auto (tons, contraste, couleur) ; panneau Histogramme, Couleur, Nuancier |
-| Filtres | Flous (gaussien, moyen, mouvement, surface, médiane), netteté (accentuation, masque flou, détails), bruit, relief, contours, dessin animé, croquis, aquarelle, mosaïque, torsion, ondulation, sphérisation, vignettage, passe-haut, min/max, nuages |
-| Édition | Copier / couper / coller (presse-papiers système, collage depuis d'autres applis), copier avec fusion, coller sur place, remplir PP/AP, effacer, dernier filtre (Ctrl+F) |
-| Espace de travail | **Dialogues déplaçables dans la fenêtre** (position mémorisée), onglets multi-documents, docks, thème sombre, zoom (Alt+molette, Ctrl+±, Ctrl+0/1, outil Zoom), pan (Espace, clic milieu, molette), grille, glisser-déposer de fichiers, mémorisation de la disposition |
+| Tools | Move, Rectangular/Elliptical selection, Lasso, Polygonal lasso, Magic wand, Crop, Eyedropper, Brush, Pencil, Eraser, Clone stamp, Gradient (5 types), Paint bucket, Blur, Sharpen, Smudge, Dodge/Burn, Text, Shape, Hand, Zoom, Free Transform |
+| Selection | New / add (Shift) / subtract (Alt) / intersect, feather, grow, shrink, smooth, invert, reselect, marching ants, **Selection Transform** (scale / rotate / move the selection outline, optionally dragging the active layer's pixels along with it, plus numeric width/height/angle entry) |
+| Layers | New, duplicate, delete, reorder (drag & drop), merge (down / visible / flatten), 18 blend modes, opacity, lock, visibility, layer masks (paint directly on the mask), editable text layers, layer via copy/cut |
+| Image | Image size, canvas size (with anchor), crop, rotate, flip |
+| Color | Brightness/Contrast, Levels, Curves (RGB + per-channel), Exposure, Hue/Saturation, Vibrance, Color Balance, Black & White, Photo Filter, Shadows/Highlights, Invert, Desaturate, Threshold, Posterize, Auto Tone/Contrast/Color; Histogram, Color, and Swatches panels |
+| Filters | Blur (Gaussian, box, motion, surface, median), sharpen (unsharp mask, detail enhance), noise, emboss, find edges, cartoon, pencil sketch, watercolor, mosaic, twirl, wave, spherize, vignette, high pass, min/max, clouds |
+| Edit | Copy / cut / paste (system clipboard, paste from other apps), copy merged, paste in place, fill foreground/background, clear, repeat last filter (Ctrl+F) |
+| Workspace | **Movable in-window dialogs** (position remembered), multi-document tabs, dockable panels, dark theme, zoom (Alt+wheel, Ctrl+±, Ctrl+0/1, Zoom tool), pan (Space, middle-click, wheel), grid, drag-and-drop files, saved layout |
 
-## Raccourcis (identiques à Photoshop)
-`V` Déplacement · `M` Sélection (Maj+M : ellipse, puis transformation de la sélection) · `L` Lasso (Maj+L polygonal) · `W` Baguette · `C` Recadrage · `I` Pipette ·
-`B` Pinceau (Maj+B crayon) · `S` Tampon · `E` Gomme · `G` Dégradé (Maj+G pot) · `R` Goutte/Netteté/Doigt · `O` Densité · `T` Texte ·
-`U` Formes · `H` Main · `Z` Zoom · `X` permuter couleurs · `D` couleurs par défaut · `[` `]` taille · `{` `}` dureté ·
-`Espace` main temporaire · `Alt` pipette (pinceau) / source (tampon) · `Maj+clic` ligne droite ·
-`Ctrl+N/O/S/Maj+S/W` · `Ctrl+Z` / `Ctrl+Maj+Z` · `Ctrl+X/C/V` · `Ctrl+A/D/Maj+D/Maj+I` · `Ctrl+J` · `Ctrl+Maj+N` · `Ctrl+E` ·
-`Ctrl+T` · `Ctrl+L/M/U/B/I` · `Ctrl+Maj+U/L` · `Ctrl+F` · `Ctrl+0/1/±` · `Alt+Retour arrière` / `Ctrl+Retour arrière` · `Tab` · `F1` (liste complète).
+## Keyboard shortcuts (matching Photoshop)
+`V` Move · `M` Selection (Shift+M: ellipse, then Selection Transform) · `L` Lasso (Shift+L: polygonal) · `W` Magic wand · `C` Crop · `I` Eyedropper ·
+`B` Brush (Shift+B: pencil) · `S` Clone stamp · `E` Eraser · `G` Gradient (Shift+G: bucket) · `R` Blur/Sharpen/Smudge · `O` Dodge/Burn · `T` Text ·
+`U` Shape · `H` Hand · `Z` Zoom · `X` swap colors · `D` default colors · `[` `]` brush size · `{` `}` hardness ·
+`Space` temporary pan · `Alt` eyedropper (brush) / source point (clone) · `Shift+click` straight line ·
+`Ctrl+N/O/S/Shift+S/W` · `Ctrl+Z` / `Ctrl+Shift+Z` · `Ctrl+X/C/V` · `Ctrl+A/D/Shift+D/Shift+I` · `Ctrl+J` · `Ctrl+Shift+N` · `Ctrl+E` ·
+`Ctrl+T` · `Ctrl+L/M/U/B/I` · `Ctrl+Shift+U/L` · `Ctrl+F` · `Ctrl+0/1/±` · `Alt+Backspace` / `Ctrl+Backspace` · `Tab` · `F1` (full list, in-app).
 
-![Screen Shot ](/shot2.png)
+## Selection Transform (tool in the `M` group, or the Selection menu)
+Handles surround the selection: dragging a handle scales it (Shift: keep proportions, Alt: from the center), dragging
+outside the frame rotates around the center (Shift: 15° steps), dragging inside moves it. The Width/Height/Rotation
+fields in the options bar allow numeric entry. Enter or double-click confirms, Escape cancels; switching tools or
+triggering a menu action also confirms.
 
+**Content**: by default, pixels of the **active layer** that fall inside the selection travel with the transform,
+with a live preview (the old spot is cleared, like a "cut, then paste transformed"). Pixels and outline are
+committed — and undone — as **a single history entry**. Uncheck "Transform layer content" in the options bar to
+transform only the outline. If the active layer is hidden or locked, only the outline is transformed (a message
+is shown). Text layers are rasterized on commit. `Ctrl+T` (Free Transform) does the same thing on the selection,
+or on the whole layer if there is no selection.
 
-## Transformation de la sélection (outil du groupe `M`, ou menu Sélection)
-Des poignées entourent la sélection : glisser une poignée = échelle (Maj : proportionnel, Alt : depuis le centre), glisser
-hors du cadre = rotation autour du centre (Maj : pas de 15°), glisser à l'intérieur = déplacer. Les champs L / H / Rotation de la barre
-d'options permettent la saisie numérique. Entrée ou double-clic valide, Échap annule ; changer d'outil ou lancer une action de menu valide.
+## Movable dialogs
+The application's dialogs (filters and adjustments, sizes, new document, text, color picker, numeric prompts) are
+floating frames *embedded as children of the main window*: you drag them by their title bar (they always stay
+inside the window, including under Wayland), their position is remembered per dialog type, and by default they
+open in the top-right corner so the image stays visible. While a dialog is open, menus, panels and shortcuts are
+disabled, but you can still pan/zoom the image (hand tool, Space, wheel, Alt+wheel) to judge the live preview.
+Only file open/save dialogs and alert boxes remain native system windows. To create a new one: derive from
+`MovableDialog` (the `exec()` call works the same way as a normal `QDialog`).
 
-**Contenu** : par défaut, les pixels du **calque actif** situés dans la sélection suivent la transformation, avec aperçu en direct
-(l'ancien emplacement est vidé, comme un « couper puis coller transformé »). Pixels et contour sont validés — et annulés — en **une seule
-étape d'historique**. Décocher « Transformer le contenu du calque » dans la barre d'options pour ne transformer que le contour.
-Si le calque actif est masqué ou verrouillé, seul le contour est transformé (avec un message). Les calques texte sont pixellisés
-à la validation. `Ctrl+T` (Transformation manuelle) fait la même chose sur la sélection, ou sur tout le calque s'il n'y en a pas.
-
-## Dialogues déplaçables
-Les boîtes de dialogue de l'application (filtres et réglages, tailles, nouveau document, texte, sélecteur de couleur, saisies) sont des
-cadres flottants *enfants de la fenêtre principale* : on les déplace en glissant leur barre de titre (elles restent dans la fenêtre,
-même sur Wayland), leur position est mémorisée par type de dialogue, et par défaut elles s'ouvrent en haut à droite pour ne pas
-masquer l'image. Pendant qu'un dialogue est ouvert, menus, panneaux et raccourcis sont inhibés mais on peut naviguer dans l'image
-(main, Espace, molette, Alt+molette) pour juger l'aperçu en direct. Seules les boîtes d'ouverture/enregistrement de fichiers et
-les messages d'alerte restent des fenêtres système. Pour en créer une : dériver de `MovableDialog` (l'appel `exec()` reste identique).
-
-## Limites connues / pistes d'évolution
-Non implémentés : sélection rapide, lasso magnétique, plume/tracés/calques de forme vectoriels (les formes sont pixellisées),
-styles de calque (fx), objets dynamiques, groupes de calques, calques de réglage non destructifs (les réglages sont appliqués
-aux pixels), pinceau de correction / correcteur, Fluidité, remplissage d'après contenu, masque de sélection rapide, règles et
-repères, navigateur, couches, 16 bits / CMJN / profils ICC, import/export PSD, sensibilité à la pression d'une tablette.
-Les calques ont la taille du document (simple et robuste ; un modèle "calque + décalage" serait plus économe en mémoire).
-Le texte s'édite via une boîte de dialogue (pas de saisie directement sur le canevas).
+## Known limitations / possible future work
+Not implemented: quick selection, magnetic lasso, pen tool / vector paths / shape layers (shapes are rasterized),
+layer styles (fx), smart objects, layer groups, non-destructive adjustment layers (adjustments are applied
+directly to pixels), spot healing / healing brush, Liquify, content-aware fill, quick mask, rulers and guides,
+navigator, channels panel, 16-bit / CMYK / ICC color profiles, PSD import/export, tablet pressure sensitivity.
+Layers are always the size of the document (simple and robust; a "layer + offset" model would use less memory).
+Text is edited through a dialog box rather than directly on the canvas.
