@@ -1,0 +1,27 @@
+cat > /home/charles/MYSTUFF/C++/OPENCV/PhotoClone/depend/stablediffusioncpp/pcsd.map << 'EOF'
+{
+  global:
+    sd_set_log_callback;
+    sd_set_progress_callback;
+    sd_get_num_physical_cores;
+    sd_get_system_info;
+    sd_ctx_params_init;
+    new_sd_ctx;
+    free_sd_ctx;
+    sd_ctx_supports_image_generation;
+    sd_get_model_version_name;
+    sd_sample_params_init;
+    sd_get_default_sample_method;
+    sd_get_default_scheduler;
+    sd_img_gen_params_init;
+    generate_image;
+    free_sd_images;
+    sd_cancel_generation;
+    sd_sample_method_name;
+    str_to_sample_method;
+    sd_scheduler_name;
+    str_to_scheduler;
+  local:
+    *;
+};
+EOF
