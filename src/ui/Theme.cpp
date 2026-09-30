@@ -13,6 +13,8 @@ void applyDarkTheme(QApplication& app) {
     p.setColor(QPalette::ToolTipBase, QColor(0x20, 0x20, 0x20)); p.setColor(QPalette::ToolTipText, text);
     p.setColor(QPalette::Text, text);           p.setColor(QPalette::Button, alt);
     p.setColor(QPalette::ButtonText, text);     p.setColor(QPalette::BrightText, Qt::white);
+    p.setColor(QPalette::Link, QColor(0x6c, 0xb6, 0xff));            // liens lisibles sur fond sombre
+    p.setColor(QPalette::LinkVisited, QColor(0xb0, 0x9c, 0xff));
     p.setColor(QPalette::Highlight, hl);        p.setColor(QPalette::HighlightedText, Qt::white);
     p.setColor(QPalette::Disabled, QPalette::Text, QColor(0x80, 0x80, 0x80));
     p.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(0x80, 0x80, 0x80));

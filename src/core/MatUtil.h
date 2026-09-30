@@ -18,6 +18,7 @@ inline float lum(float r, float g, float b) { return 0.299f * r + 0.587f * g + 0
 QImage toQImage(const cv::Mat& bgra);          // copie profonde (Format_ARGB32)
 cv::Mat fromQImage(const QImage& img);         // copie profonde -> BGRA
 QImage thumbnail(const cv::Mat& bgra, QSize box, bool checker = true);
+QString humanSize(qint64 bytes);               // « 4,27 Go », « 512 Mo »… (base 1000, comme les affichages usuels de taille de fichier)
 void premultiply(cv::Mat& bgra);
 void unpremultiply(cv::Mat& bgra);
 }

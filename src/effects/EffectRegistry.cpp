@@ -4,6 +4,7 @@
 EffectRegistry::EffectRegistry() {
     registerFilters(*this);
     registerAdjustments(*this);
+    registerRetouch(*this);
 }
 
 EffectRegistry& EffectRegistry::instance() {
@@ -27,6 +28,22 @@ void EffectRegistry::add(const QString& id, const QString& name, const QString& 
     auto e = std::make_shared<Effect>();
     e->id = id; e->name = name; e->category = category; e->defs = std::move(defs); e->fn = std::move(fn);
     m_all.push_back(e);
+}
+
+void EffectRegistry::addMasked(const QString& id, const QString& name, const QString& category, std::vector<ParamDef> defs,
+                               Effect::MaskFn fn, bool requiresSelection, bool supportsSampleAllLayers) {
+    auto e = std::make_shared<Effect>();
+    e->id = id; e->name = name; e->category = category; e->defs = std::move(defs);
+    e->maskFn = std::move(fn);
+    e->requiresSelection = requiresSelection;
+    e->supportsSampleAllLayers = supportsSampleAllLayers;
+    m_all.push_back(e);
+}
+
+namespace EffectDiag {
+static QString g_error;
+void setError(const QString& s) { g_error = s; }
+QString takeError() { QString s = g_error; g_error.clear(); return s; }
 }
 
 cv::Mat blendWithSelection(const cv::Mat& orig, const cv::Mat& result, const cv::Mat& sel) {

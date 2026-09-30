@@ -2,6 +2,7 @@
 #include "MatUtil.h"
 #include "Selection.h"
 #include "Workspace.h"
+#include "ai/AIBackend.h"
 #include <opencv2/imgproc.hpp>
 #include <QClipboard>
 #include <QGuiApplication>
@@ -373,12 +374,156 @@ Layer::Ptr paste(Document* d, bool inPlace, QPoint center) {
     return l;
 }
 
+// ------------------------------------------------------------------------------------------ IA
+bool removeBackground(Document* d, const cv::Mat& raw, const RemoveBgParams& p, QString* error, QString* warning) {
+    auto fail = [&](const QString& m) { if (error) *error = m; return false; };
+    if (raw.empty() || raw.type() != CV_8UC1 || raw.size() != cv::Size(d->size().width(), d->size().height()))
+        return fail("Masque de détourage invalide (taille différente du document).");
+    cv::Mat refined = refineMask(raw, p.mask);
+
+    if (p.output == RemoveBgParams::SelectionOnly) {
+        d->setSelection(refined, "Sélection du sujet (IA)");
+        return true;
+    }
+    QString why;
+    auto l = d->editableLayer(&why);
+    if (!l) return fail(why);
+
+    if (p.output == RemoveBgParams::LayerMask) {
+        cv::Mat nm = refined;
+        if (l->hasMask()) cv::multiply(l->mask, refined, nm, 1.0 / 255.0);   // combine avec un masque existant
+        d->doLayerChange("Supprimer l'arrière-plan (masque)", l, [&](Layer& L) { L.mask = nm; L.props.maskEnabled = true; L.editingMask = false; });
+        return true;
+    }
+
+    // NewLayer / ReplaceLayer : les pixels sont modifiés (couleurs de bord corrigées si demandé)
+    const bool fromComposite = p.sampleAll && p.output == RemoveBgParams::NewLayer;
+    cv::Mat source = fromComposite ? d->compositeCopy() : l->image;
+    cv::Mat colored = source;
+    if (p.defringe) {
+        auto r = AIBackend::estimateForeground(source, refined, p.defringeRadius);
+        if (r.ok) {
+            cv::Mat rgb = r.data.clone();
+            cv::Mat srcA;
+            cv::extractChannel(source, srcA, 3);
+            cv::insertChannel(srcA, rgb, 3);       // conserve l'alpha d'origine (le masque est appliqué ensuite)
+            colored = rgb;
+        } else if (warning) *warning = "Couleurs de bord non corrigées : " + r.error;
+    }
+    cv::Mat cut = applyMaskToAlpha(colored, refined);
+    if (p.output == RemoveBgParams::NewLayer) {
+        insertAbove(d, Layer::create(uniqueLayerName(d, "Sujet"), cut), "Supprimer l'arrière-plan (nouveau calque)");
+    } else {
+        d->doLayerChange("Supprimer l'arrière-plan", l, [&](Layer& L) { L.image = cut; L.text.reset(); });
+    }
+    return true;
+}
+
+bool applyDepth(Document* d, const cv::Mat& rawDepth, const DepthApplyParams& p, QString* error) {
+    if (rawDepth.empty() || rawDepth.type() != CV_8UC1 || rawDepth.size() != cv::Size(d->size().width(), d->size().height())) {
+        if (error) *error = "Carte de profondeur invalide (taille différente du document).";
+        return false;
+    }
+    if (!p.makeLayer && !p.makeSelection) { if (error) *error = "Rien à créer : cochez « Créer un calque » et/ou « Créer une sélection »."; return false; }
+    cv::Mat depth = refineDepth(rawDepth, p.depth);
+    d->undoStack()->beginMacro("Carte de profondeur (IA)");
+    if (p.makeLayer) {
+        cv::Mat bgra;
+        cv::cvtColor(depth, bgra, cv::COLOR_GRAY2BGRA);
+        cv::insertChannel(cv::Mat(depth.size(), CV_8UC1, cv::Scalar(255)), bgra, 3);
+        insertAbove(d, Layer::create(uniqueLayerName(d, "Profondeur"), bgra), "Nouveau calque");
+    }
+    if (p.makeSelection) d->setSelection(depthToSelection(depth, p.threshold, p.selectBright, p.feather), "Sélection par profondeur");
+    d->undoStack()->endMacro();
+    return true;
+}
+
+bool aiUpscale(Document* d, const UpscaleParams& p, QString* error, const std::function<bool(int, int)>& progress) {
+    auto fail = [&](const QString& m) { if (error) *error = m; return false; };
+    const int n = int(d->layers().size());
+    const cv::Size old(d->size().width(), d->size().height());
+
+    // Facteur du modèle : on le connaît après le 1er calque ; on borne la taille AVANT de lancer un calcul très long.
+    std::vector<cv::Mat> images, masks(n);
+    int scale = 0;
+    cv::Size target;
+    for (int i = 0; i < n; ++i) {
+        if (progress && !progress(i, n)) return fail("Opération annulée.");
+        const auto& l = d->layers()[i];
+        cv::Mat bled = bleedColors(l->image);
+        auto r = AIBackend::upscale(bled);
+        if (!r.ok) return fail(r.error);
+        if (i == 0) {
+            scale = r.scale;
+            double fs = p.nativeScale ? double(scale) : p.finalScale;
+            target = cv::Size(std::max(1, int(std::lround(old.width * fs))), std::max(1, int(std::lround(old.height * fs))));
+            if (static_cast<long long>(target.width) * target.height > p.maxPixels)
+                return fail(QString("Résultat trop grand (%1 × %2 px) : limite de sécurité %3 mégapixels. Réduisez l'image ou le facteur.")
+                                .arg(target.width).arg(target.height).arg(p.maxPixels / 1000000));
+        }
+        if (r.data.size() != old * scale) return fail("Taille de sortie inattendue du modèle.");
+        cv::Mat up = r.data;                                   // RGB agrandi par le modèle (alpha de sortie ignoré)
+        cv::Mat alpha8;
+        cv::extractChannel(l->image, alpha8, 3);
+        cv::Mat alphaUp;
+        cv::resize(alpha8, alphaUp, up.size(), 0, 0, cv::INTER_CUBIC);
+        cv::insertChannel(alphaUp, up, 3);
+        if (up.size() != target) cv::resize(up, up, target, 0, 0, up.cols > target.width ? cv::INTER_AREA : cv::INTER_CUBIC);
+        images.push_back(up);
+        if (l->hasMask()) cv::resize(l->mask, masks[i], target, 0, 0, cv::INTER_LINEAR);
+    }
+    Document::LayerList nl;
+    for (int i = 0; i < n; ++i) nl.push_back(shell(*d->layers()[i], images[i], masks[i]));
+    QSize ns(target.width, target.height);
+    d->doStructural(QString("Agrandissement IA ×%1").arg(double(target.width) / old.width, 0, 'g', 3), [&] { d->mutableLayers() = nl; d->setSizeInternal(ns); });
+    return true;
+}
+
+// ------------------------------------------------------------------------------------------ Stable Diffusion
+bool sdApplyInpaint(Document* d, const Sd::InpaintPlan& plan, const cv::Mat& generated, QString* error) {
+    auto fail = [&](const QString& m) { if (error) *error = m; return false; };
+    QString why;
+    auto l = d->editableLayer(&why);
+    if (!l) return fail(why);
+    if (generated.type() != CV_8UC4 || generated.size() != plan.work) return fail("Image générée invalide (taille de travail attendue).");
+    if (plan.blendMask.size() != cv::Size(d->size().width(), d->size().height())) return fail("Le document a changé de taille depuis la préparation de l'inpainting.");
+    cv::Mat out = Sd::compositeInpaint(l->image, plan, generated);
+    d->doLayerChange("Inpainting (Stable Diffusion)", l, [&](Layer& L) { L.image = out; L.text.reset(); });
+    return true;
+}
+
+static QString sdLayerName(const QString& prompt) {
+    QString p = prompt.simplified();
+    if (p.size() > 28) p = p.left(27) + QStringLiteral("…");
+    return p.isEmpty() ? QString("Image IA") : "IA : " + p;
+}
+
+Layer::Ptr sdAddImage(Document* d, const cv::Mat& generated, Sd::Placement placement, const QString& prompt, QString* error) {
+    if (generated.type() != CV_8UC4 || generated.empty()) { if (error) *error = "Image générée invalide."; return nullptr; }
+    cv::Mat img = Sd::placeGenerated(generated, d->size(), placement, d->selection());
+    auto l = Layer::create(uniqueLayerName(d, sdLayerName(prompt)), img);
+    insertAbove(d, l, "Génération d'image (Stable Diffusion)");
+    return l;
+}
+
+Document* sdNewDocument(const cv::Mat& generated, const QString& prompt) {
+    QSize s(generated.cols, generated.rows);
+    auto* d = new Document(s);
+    d->applyStructure({s, {Layer::create(sdLayerName(prompt), generated.clone())}, 0});
+    d->undoStack()->clear();
+    return d;
+}
+
 void applyEffect(Document* d, const Effect& e, const Params& p) {
     QString why;
     auto l = d->editableLayer(&why);
     if (!l) { notify(why); return; }
+    if (e.requiresSelection && !d->hasSelection()) { notify(e.name.section(QStringLiteral("…"), 0, 0) + " : sélectionnez d'abord une zone."); return; }
+    cv::Mat source = (e.supportsSampleAllLayers && p.b("sampleAll")) ? d->compositeCopy() : l->image;
+    EffectDiag::takeError();                                  // purge d'éventuelles erreurs anciennes
+    cv::Mat res = e.run(source, d->selection(), p);
+    if (QString err = EffectDiag::takeError(); !err.isEmpty()) { notify(err); return; }   // échec : aucun changement, aucune entrée d'historique
     d->doLayerChange(e.name.section(QStringLiteral("…"), 0, 0), l, [&](Layer& L) {
-        cv::Mat res = e.run(L.image, p);
         L.image = blendWithSelection(L.image, res, d->selection());
         L.text.reset();
     });

@@ -27,6 +27,7 @@ static const QMap<QString, QString>& toolSvgs() {
         {"lasso", "<path d='M12 5c-5 0-8 2-8 5s3 5 8 5 8-2 8-5-3-5-8-5z'/><path d='M8 15c0 3 1 4 3 5'/>"},
         {"lasso_poly", "<path d='M4 8l6-4 9 3-2 8-7 5-6-6z' stroke-dasharray='3 2'/>"},
         {"wand", "<path d='M4 20L15 9'/><path d='M17 3v4M15 5h4M20 9v3M18.5 10.5h3M8 4v3M6.5 5.5h3'/>"},
+        {"sam", "<path d='M5 4l6 15 2.5-6L20 10.5z'/><path d='M17 3v3M15.5 4.5h3M20 15v3M18.5 16.5h3'/>"},
         {"crop", "<path d='M7 2v15h15M2 7h15v15'/>"},
         {"eyedropper", "<path d='M15 4l5 5-3 3-5-5z'/><path d='M12 7l-8 8v5h5l8-8'/>"},
         {"brush", "<path d='M20 4c-6 2-9 6-10 9l3 3c3-1 7-4 7-12z'/><path d='M9 14c-3 0-4 2-4 4s-1 2-2 2c3 2 8 1 8-3'/>"},

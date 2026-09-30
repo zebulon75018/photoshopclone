@@ -58,4 +58,13 @@ void unpremultiply(cv::Mat& m) {
         }
     }
 }
+
+QString humanSize(qint64 bytes) {
+    if (bytes < 0) return "?";
+    static const char* units[] = {"o", "Ko", "Mo", "Go", "To"};
+    double v = double(bytes);
+    int u = 0;
+    while (v >= 1000.0 && u < 4) { v /= 1000.0; ++u; }
+    return (u == 0) ? QString("%1 o").arg(bytes) : QString("%1 %2").arg(v, 0, 'f', v < 10 ? 2 : (v < 100 ? 1 : 0)).arg(units[u]);
+}
 }

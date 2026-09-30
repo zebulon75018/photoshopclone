@@ -20,6 +20,7 @@ struct ToolSettings {
     int tolerance = 32;
     bool contiguous = true;
     bool sampleAll = false;
+    bool samSampleAll = true;      // sélection par IA : analyser l'image fusionnée (sinon le calque actif)
     // transformation de la sélection : transformer aussi les pixels du calque actif contenus dans la sélection
     bool selTransformContent = true;
     // dégradé

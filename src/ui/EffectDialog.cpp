@@ -72,6 +72,11 @@ void EffectDialog::buildUi() {
         }
     }
     root->addLayout(form);
+    m_error = new QLabel;
+    m_error->setWordWrap(true);
+    m_error->setStyleSheet("color:#ff8a80;");
+    m_error->hide();
+    root->addWidget(m_error);
     auto* prev = new QCheckBox("Aperçu"); prev->setChecked(true);
     connect(prev, &QCheckBox::toggled, this, [this](bool on) { m_preview = on; if (on) preview(); else restore(); });
     auto* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Reset);
@@ -92,7 +97,13 @@ void EffectDialog::schedulePreview() { if (m_preview) m_timer.start(); }
 
 void EffectDialog::preview() {
     if (!m_preview) return;
-    cv::Mat res = m_effect->run(m_orig, m_params);
+    cv::Mat source = (m_effect->supportsSampleAllLayers && m_params.b("sampleAll")) ? m_doc->compositeCopy() : m_orig;
+    EffectDiag::takeError();
+    cv::Mat res = m_effect->run(source, m_doc->selection(), m_params);
+    QString err = EffectDiag::takeError();
+    m_error->setText(err);
+    m_error->setVisible(!err.isEmpty());
+    if (!err.isEmpty()) { m_layer->image = m_orig; m_doc->invalidateAll(); return; }   // échec : on montre l'original
     m_layer->image = blendWithSelection(m_orig, res, m_doc->selection());
     m_doc->invalidateAll();
 }

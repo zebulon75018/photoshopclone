@@ -150,6 +150,31 @@ public:
     void buildOptions(OptionsBar&) override;
 };
 
+// Sélection par IA (MobileSAM, « segmentation par indication ») : un clic = objet sous le curseur, un cadre glissé = objet
+// dans le cadre. Maj = ajouter, Alt = soustraire, comme les autres outils de sélection. L'image est analysée une fois
+// (quelques secondes sur CPU) puis chaque clic est quasi instantané ; elle est ré-analysée automatiquement si le document a
+// été modifié depuis (ou via « Ré-analyser l'image »).
+class SamTool : public Tool {
+    Q_OBJECT
+public:
+    QString id() const override { return "sam"; }
+    QString name() const override { return "Sélection par IA — MobileSAM (W)"; }
+    void press(const ToolEvent&) override;
+    void move(const ToolEvent&) override;
+    void release(const ToolEvent&) override;
+    void paintOverlay(QPainter&, CanvasView*) override;
+    void activate() override;
+    void deactivate() override { m_drag = false; }
+    void cancel() override { m_drag = false; }
+    void buildOptions(OptionsBar&) override;
+    void invalidate() { m_stale = true; }
+private:
+    bool ensureEncoded(Document*, CanvasView*);
+    QPointer<Document> m_doc;
+    bool m_stale = true, m_drag = false, m_lastSampleAll = true;
+    QPointF m_a, m_b, m_wa, m_wb;
+};
+
 // ----------------------------------------------------------------------------- recadrage / pipette
 class CropTool : public Tool {
     Q_OBJECT

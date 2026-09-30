@@ -45,12 +45,21 @@ inline ParamDef Curve(const QString& k, const QString& l) { ParamDef p; p.type =
 class Effect {
 public:
     using Fn = std::function<cv::Mat(const cv::Mat& srcBGRA, const Params&)>;
+    // Variante pour les effets qui ont besoin de connaître la sélection ELLE-MÊME (pas seulement le résultat qui lui sera
+    // appliqué après coup) : le masque de sélection courant (peut être vide = aucune sélection) leur est passé directement.
+    // Cas d'usage : retouche par comblement (inpainting), où la sélection désigne la zone à reconstruire.
+    using MaskFn = std::function<cv::Mat(const cv::Mat& srcBGRA, const cv::Mat& selectionMask, const Params&)>;
     QString id, name, category;
     std::vector<ParamDef> defs;
     Fn fn;
+    MaskFn maskFn;                        // si défini, prioritaire sur fn (voir run())
+    bool requiresSelection = false;       // refuse (message) si aucune sélection active : voir Ops::applyEffect
+    bool supportsSampleAllLayers = false; // si vrai et param "sampleAll" coché : la source est le composite, pas le calque
 
     Params defaults() const { Params p; for (auto& d : defs) p.set(d.key, d.def); return p; }
-    cv::Mat run(const cv::Mat& src, const Params& p) const { return fn(src, p); }
+    // Utilisé par le test de fumée (parcourt tous les effets sans sélection) : maskFn reçoit alors un masque vide.
+    cv::Mat run(const cv::Mat& src, const Params& p) const { return fn ? fn(src, p) : maskFn(src, cv::Mat(), p); }
+    cv::Mat run(const cv::Mat& src, const cv::Mat& sel, const Params& p) const { return maskFn ? maskFn(src, sel, p) : fn(src, p); }
 };
 using EffectPtr = std::shared_ptr<Effect>;
 
@@ -61,13 +70,25 @@ public:
     EffectPtr find(const QString& id) const;
     QStringList categories(const QString& prefix) const;   // ex. "filter" ou "adjust"
     void add(const QString& id, const QString& name, const QString& category, std::vector<ParamDef> defs, Effect::Fn fn);
+    // Effet "conscient de la sélection" (voir Effect::MaskFn) ; requiresSelection/supportsSampleAllLayers : voir Effect.
+    void addMasked(const QString& id, const QString& name, const QString& category, std::vector<ParamDef> defs,
+                   Effect::MaskFn fn, bool requiresSelection = true, bool supportsSampleAllLayers = false);
 private:
     EffectRegistry();
     std::vector<EffectPtr> m_all;
 };
 
+// Canal d'erreur des effets (la signature des fonctions d'effet ne permet pas de renvoyer une erreur) : un effet qui
+// échoue (ex. modèle IA absent) appelle setError() et renvoie son entrée ; l'appelant (aperçu ou Ops::applyEffect)
+// lit puis vide l'erreur avec takeError() et n'applique alors rien.
+namespace EffectDiag {
+void setError(const QString&);
+QString takeError();
+}
+
 void registerFilters(EffectRegistry&);
 void registerAdjustments(EffectRegistry&);
+void registerRetouch(EffectRegistry&);
 
 // Applique `result` sur `orig` en respectant la sélection (masque doux) : out = orig*(1-s) + result*s
 cv::Mat blendWithSelection(const cv::Mat& orig, const cv::Mat& result, const cv::Mat& sel);

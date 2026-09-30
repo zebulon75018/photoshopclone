@@ -11,7 +11,7 @@ ToolManager::ToolManager(QObject* parent) : QObject(parent) {
     add("V", {new MoveTool});
     add("M", {new MarqueeTool(false), new MarqueeTool(true), new SelectionTransformTool});
     add("L", {new LassoTool, new PolyLassoTool});
-    add("W", {new WandTool});
+    add("W", {new WandTool, new SamTool});
     add("C", {new CropTool});
     add("I", {new EyedropperTool});
     add("B", {new PaintTool(PaintTool::Brush), new PaintTool(PaintTool::Pencil)});

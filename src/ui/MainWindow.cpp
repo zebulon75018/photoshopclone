@@ -18,6 +18,9 @@
 #include <QDragEnterEvent>
 #include <QFileDialog>
 #include <QFileInfo>
+#include "AIDialogs.h"
+#include "SdDialogs.h"
+#include "ai/SdBackend.h"
 #include "MovableDialog.h"
 #include <QLabel>
 #include <QMessageBox>
@@ -70,6 +73,7 @@ MainWindow::MainWindow() {
 }
 
 MainWindow::~MainWindow() {
+    Sd::shutdown();
     WS().setMainWindow(nullptr);
     m_closing = true;   // les Documents sont détruits avec les vues : ne plus toucher à l'interface
     WS().setView(nullptr);
@@ -178,6 +182,7 @@ void MainWindow::buildMenus() {
     e->addSeparator();
     add(e, "Remplir avec la couleur de premier plan", "Alt+Backspace", onDoc([](Document* d) { Ops::fillSelection(d, WS().fg, "Remplir (premier plan)"); }));
     add(e, "Remplir avec la couleur d'arrière-plan", "Ctrl+Backspace", onDoc([](Document* d) { Ops::fillSelection(d, WS().bg, "Remplir (arrière-plan)"); }));
+    add(e, "Remplissage d'après le contenu (comblement)…", "Shift+F5", [this] { runEffect("retouch.inpaint"); });
     e->addSeparator();
     add(e, "Transformation manuelle", "Ctrl+T", [this] { startTransform(); });
     QMenu* tr = e->addMenu("Transformation du calque");
@@ -266,6 +271,29 @@ void MainWindow::buildMenus() {
         for (const EffectPtr& ef : reg.all())
             if (ef->id.startsWith("filter.") && ef->category == cat) { QString id = ef->id; add(sub, ef->name, "", [this, id] { runEffect(id); }); }
     }
+
+    // ---------------------------------------------------------------- IA (vision.cpp)
+    QMenu* ai = menuBar()->addMenu("&IA");
+    add(ai, "Réglages des modèles…", "", [this] { AIModelsDialog dlg(this); dlg.exec(); }, false);
+    ai->addSeparator();
+    add(ai, "Supprimer l'arrière-plan…", "Ctrl+Alt+K", [this] { cmdRemoveBackground(); });
+    add(ai, "Sélection par IA (MobileSAM) : cliquer / cadrer un objet", "", [this] {
+        WS().tools()->select(WS().tools()->byId("sam"));
+        if (!AIModels::isConfigured(AIArchitecture::Sam)) statusBar()->showMessage("MobileSAM : aucun modèle configuré (menu IA > Réglages des modèles…).", 6000);
+    }, false);
+    add(ai, "Remplissage IA (MI-GAN)…", "", [this] { if (ensureAIModel(AIArchitecture::MiGan)) runEffect("retouch.inpaint", false, {{"algo", 2}}); });
+    add(ai, "Carte de profondeur (Depth-Anything)…", "", [this] { cmdDepth(); });
+    add(ai, "Agrandissement IA (Real-ESRGAN)…", "", [this] { cmdUpscale(); });
+    ai->addSeparator();
+    add(ai, "Générer une image (Stable Diffusion)…", "Ctrl+Alt+G", [this] { cmdSdGenerate(); });
+    add(ai, "Inpainting sur la sélection (Stable Diffusion)…", "Ctrl+Alt+P", [this] { cmdSdInpaint(); });
+    add(ai, "Réglages de Stable Diffusion…", "", [this] { SdSettingsDialog dlg(this); dlg.exec(); }, false);
+    ai->addSeparator();
+    add(ai, "Libérer la mémoire des modèles IA", "", [this] {
+        Sd::unloadModel();
+        AIBackend::clearCache();
+        statusBar()->showMessage("Modèles IA déchargés de la mémoire.", 4000);
+    }, false);
 
     // ---------------------------------------------------------------- Affichage
     QMenu* v = menuBar()->addMenu("&Affichage");
@@ -427,15 +455,17 @@ void MainWindow::exportAs() {
 }
 
 // ------------------------------------------------------------------------------------------ actions
-void MainWindow::runEffect(const QString& id, bool reuse) {
+void MainWindow::runEffect(const QString& id, bool reuse, const QVariantMap& overrides) {
     Document* d = doc();
     if (!d) return;
     auto e = EffectRegistry::instance().find(id);
     if (!e) return;
     QString why;
     if (!d->editableLayer(&why)) { statusBar()->showMessage(why, 4000); return; }
+    if (e->requiresSelection && !d->hasSelection()) { statusBar()->showMessage(e->name.section(QStringLiteral("…"), 0, 0) + " : sélectionnez d'abord une zone.", 4000); return; }
     Params p = (reuse && m_lastEffect == e) ? m_lastParams : e->defaults();
     if (id == "filter.clouds" && !reuse) { p.set("fg", WS().fg); p.set("bg", WS().bg); }
+    for (auto it = overrides.cbegin(); it != overrides.cend(); ++it) p.set(it.key(), it.value());
     if (!e->defs.empty()) {
         EffectDialog dlg(d, e, p, this);
         if (dlg.exec() != QDialog::Accepted) return;
@@ -445,6 +475,115 @@ void MainWindow::runEffect(const QString& id, bool reuse) {
     Ops::applyEffect(d, *e, p);
     QApplication::restoreOverrideCursor();
     m_lastEffect = e; m_lastParams = p;
+}
+
+// ------------------------------------------------------------------------------------------ IA
+bool MainWindow::ensureAIModel(AIArchitecture a) {
+    const AIArchitectureInfo& inf = AIModels::info(a);
+    if (!AIModels::libraryAvailable()) {
+        QMessageBox::information(this, "Fonction IA indisponible",
+            "Cette version de PhotoClone a été compilée sans la bibliothèque vision.cpp.\nVoir depend/visioncpp/BUILD_FROM_SOURCE.md.");
+        return false;
+    }
+    auto problem = [&]() -> QString {
+        if (!AIModels::isConfigured(a)) return "aucun modèle configuré";
+        return AIBackend::validateModelFile(a, AIModels::modelPath(a));
+    };
+    QString why = problem();
+    if (why.isEmpty()) return true;
+    auto r = QMessageBox::question(this, "Modèle IA requis",
+        QString("%1 — %2 : %3.\n\nOuvrir les réglages des modèles maintenant ?").arg(inf.name, inf.task, why));
+    if (r == QMessageBox::Yes) { AIModelsDialog dlg(this); dlg.exec(); }
+    return problem().isEmpty();
+}
+
+void MainWindow::cmdRemoveBackground() {
+    Document* d = doc();
+    if (!d) return;
+    QString why;
+    if (!d->editableLayer(&why)) { statusBar()->showMessage(why, 4000); return; }
+    if (!ensureAIModel(AIArchitecture::BiRefNet)) return;
+    RemoveBackgroundDialog dlg(d, this);
+    if (dlg.exec() != QDialog::Accepted || !dlg.hasMask()) return;
+    QString err, warn;
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    bool ok = Ops::removeBackground(d, dlg.rawMask(), dlg.params(), &err, &warn);
+    QApplication::restoreOverrideCursor();
+    if (!ok) QMessageBox::warning(this, "Suppression de l'arrière-plan", err);
+    else if (!warn.isEmpty()) statusBar()->showMessage(warn, 8000);
+}
+
+void MainWindow::cmdDepth() {
+    Document* d = doc();
+    if (!d || !d->activeLayer()) return;
+    if (!ensureAIModel(AIArchitecture::DepthAnything)) return;
+    DepthDialog dlg(d, this);
+    if (dlg.exec() != QDialog::Accepted || !dlg.hasDepth()) return;
+    QString err;
+    if (!Ops::applyDepth(d, dlg.rawDepth(), dlg.params(), &err)) QMessageBox::warning(this, "Carte de profondeur", err);
+}
+
+void MainWindow::cmdUpscale() {
+    Document* d = doc();
+    if (!d) return;
+    if (!ensureAIModel(AIArchitecture::Esrgan)) return;
+    UpscaleDialog dlg(d, this);
+    if (dlg.exec() != QDialog::Accepted) return;
+    QString err;
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    bool ok = Ops::aiUpscale(d, dlg.params(), &err, [this](int i, int n) {
+        statusBar()->showMessage(QString("Agrandissement IA : calque %1 sur %2 (peut être long sur CPU)…").arg(i + 1).arg(n));
+        QApplication::processEvents();
+        return true;
+    });
+    QApplication::restoreOverrideCursor();
+    statusBar()->clearMessage();
+    if (!ok) QMessageBox::warning(this, "Agrandissement IA", err);
+    else if (view()) view()->zoomFit(true);
+}
+
+// ------------------------------------------------------------------------------------------ Stable Diffusion
+bool MainWindow::ensureSd() {
+    if (!Sd::libraryCompiled()) {
+        QMessageBox::information(this, "Stable Diffusion indisponible",
+            "Cette version de PhotoClone a été compilée sans stable-diffusion.cpp.\nVoir depend/stablediffusioncpp/BUILD_FROM_SOURCE.md.");
+        return false;
+    }
+    QString libErr;
+    if (!Sd::libraryLoaded(&libErr)) { QMessageBox::warning(this, "Stable Diffusion indisponible", libErr); return false; }
+    auto problem = [] { return Sd::validateConfig(Sd::loadConfig()); };
+    QString why = problem();
+    if (why.isEmpty()) return true;
+    auto r = QMessageBox::question(this, "Modèle Stable Diffusion requis", QString("%1\n\nOuvrir les réglages maintenant ?").arg(why));
+    if (r == QMessageBox::Yes) { SdSettingsDialog dlg(this); dlg.exec(); }
+    return problem().isEmpty();
+}
+
+void MainWindow::cmdSdGenerate() {
+    if (!ensureSd()) return;
+    Document* d = doc();
+    SdGenerateDialog dlg(d, this);
+    if (dlg.exec() != QDialog::Accepted) return;
+    const cv::Mat img = dlg.selectedImage();
+    if (img.empty()) return;
+    if (!d) { addDocument(Ops::sdNewDocument(img, dlg.promptText())); return; }
+    QString err;
+    if (!Ops::sdAddImage(d, img, dlg.placement(), dlg.promptText(), &err)) QMessageBox::warning(this, "Génération d'image", err);
+}
+
+void MainWindow::cmdSdInpaint() {
+    Document* d = doc();
+    if (!d) return;
+    QString why;
+    if (!d->editableLayer(&why)) { statusBar()->showMessage(why, 4000); return; }
+    if (!d->hasSelection()) { statusBar()->showMessage("Inpainting : sélectionnez d'abord la zone à régénérer.", 5000); return; }
+    if (!ensureSd()) return;
+    SdInpaintDialog dlg(d, this);
+    if (dlg.exec() != QDialog::Accepted) return;
+    const cv::Mat gen = dlg.selectedImage();
+    if (gen.empty()) return;
+    QString err;
+    if (!Ops::sdApplyInpaint(d, dlg.plan(), gen, &err)) QMessageBox::warning(this, "Inpainting", err);
 }
 
 void MainWindow::repeatLastFilter() {
@@ -499,12 +638,19 @@ void MainWindow::showShortcuts() {
         "<tr><td><b>Ctrl+Z</b> annuler</td><td><b>Ctrl+Maj+Z</b> rétablir</td><td><b>Ctrl+T</b> transformation</td></tr>"
         "<tr><td><b>Ctrl+A/D</b> tout / désélectionner</td><td><b>Ctrl+Maj+I</b> inverser sél.</td><td><b>Ctrl+J</b> dupliquer / calque par copie</td></tr>"
         "<tr><td><b>Ctrl+L/M/U/B</b> niveaux/courbes/teinte/balance</td><td><b>Ctrl+I</b> négatif</td><td><b>Ctrl+F</b> dernier filtre</td></tr>"
-        "<tr><td><b>Alt+Retour arr.</b> remplir PP</td><td><b>Ctrl+Retour arr.</b> remplir AP</td><td><b>Tab</b> panneaux</td></tr>"
+        "<tr><td><b>Alt+Retour arr.</b> remplir PP</td><td><b>Ctrl+Retour arr.</b> remplir AP</td><td><b>Maj+F5</b> remplissage d'après le contenu</td></tr>"
+        "<tr><td><b>Tab</b> panneaux</td><td><b>Ctrl+Alt+K</b> supprimer l'arrière-plan (IA)</td><td><b>Maj+W</b> sélection par IA (MobileSAM)</td></tr>"
+        "<tr><td><b>Ctrl+Alt+G</b> générer une image (Stable Diffusion)</td><td><b>Ctrl+Alt+P</b> inpainting sur la sélection</td><td></td></tr>"
         "</table>");
 }
 
 // ------------------------------------------------------------------------------------------ événements fenêtre
 void MainWindow::closeEvent(QCloseEvent* e) {
+    if (Sd::isBusy()) {              // un calcul Stable Diffusion tourne encore : l'annuler et attendre la fin de l'étape en cours
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        Sd::shutdown();
+        QApplication::restoreOverrideCursor();
+    }
     for (int i = 0; i < m_tabs->count(); ++i)
         if (auto* v = qobject_cast<CanvasView*>(m_tabs->widget(i))) if (!maybeSave(v)) { e->ignore(); return; }
     QSettings s("PhotoClone", "PhotoClone");

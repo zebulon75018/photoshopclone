@@ -2,7 +2,9 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <functional>
+#include "ai/AIModels.h"
 #include "effects/Effect.h"
+#include <QVariantMap>
 
 class CanvasView; class Document; class OptionsBar; class ToolBox; class LayersPanel; class HistoryPanel;
 class ColorPanel; class SwatchesPanel; class HistogramPanel; class QTabWidget; class QLabel; class QDockWidget;
@@ -43,8 +45,17 @@ private:
     void addRecent(const QString& path);
 
     // actions
-    void runEffect(const QString& id, bool reuseLast = false);
+    void runEffect(const QString& id, bool reuseLast = false, const QVariantMap& overrides = {});
     void repeatLastFilter();
+    // --- IA (vision.cpp)
+    bool ensureAIModel(AIArchitecture arch);   // vérifie bibliothèque + modèle valide ; propose d'ouvrir les réglages sinon
+    void cmdRemoveBackground();
+    void cmdDepth();
+    void cmdUpscale();
+    // --- Stable Diffusion (stable-diffusion.cpp)
+    bool ensureSd();                           // bibliothèque chargée + modèle configuré ; propose d'ouvrir les réglages sinon
+    void cmdSdGenerate();
+    void cmdSdInpaint();
     void doPaste(bool inPlace);
     void startTransform();
     void togglePanels();

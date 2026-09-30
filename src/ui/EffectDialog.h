@@ -19,6 +19,6 @@ private:
     void preview();
     void restore();
     Document* m_doc; EffectPtr m_effect; Params m_params; Layer::Ptr m_layer; cv::Mat m_orig;
-    QTimer m_timer; bool m_preview = true;
+    QTimer m_timer; bool m_preview = true; class QLabel* m_error = nullptr;
     std::vector<std::function<void()>> m_resetters;
 };
