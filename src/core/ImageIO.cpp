@@ -6,9 +6,26 @@
 #include <QDataStream>
 #include <QFile>
 #include <QFileInfo>
+#include <QSaveFile>
+#include <QtEndian>
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace ImageIO {
 static const quint32 MAGIC = 0x50434C31;   // "PCL1"
+
+// Garde-fous de relecture d'un projet : un .pcl peut venir de n'importe où, et ses dimensions/indices pilotent des
+// allocations et des accès mémoire. Bornes volontairement généreuses — scans grand format, photogrammes 8K agrandis, et
+// tout ce que l'application sait créer elle-même (jusqu'à 30000 × 30000 px dans les dialogues). MAX_PIXELS = 2^30
+// ≈ 1,07 gigapixel (4 Gio par calque BGRA) : c'est aussi la limite par défaut d'OpenCV (CV_IO_MAX_IMAGE_PIXELS),
+// imdecode refuserait de toute façon un calque plus grand.
+static const qint32 MAX_SIDE = 65536;
+static const qint64 MAX_PIXELS = qint64(1) << 30;
+static const qint32 MAX_TEXT_PIXEL_SIZE = 2000;   // maximum proposé par le dialogue de texte (Dialogs.cpp)
+// Taille maximale du PNG d'un calque dans un .pcl : QByteArray (Qt 5) est indexé par un int. Au-delà, la conversion
+// déborderait et le calque serait enregistré tronqué SANS erreur. Marge pour l'en-tête interne de QByteArray.
+static const qint64 MAX_PNG_BYTES = std::numeric_limits<int>::max() - 4096;
 
 QString openFilter() {
     return "Toutes les images (*.pcl *.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp *.ppm *.pgm *.gif);;Projet PhotoClone (*.pcl);;Tous les fichiers (*)";
@@ -18,33 +35,66 @@ QString saveFilter() {
 }
 bool isNativeProject(const QString& p) { return p.endsWith(".pcl", Qt::CaseInsensitive); }
 
-static QByteArray encodePng(const cv::Mat& m) {
+static bool encodePng(const cv::Mat& m, QByteArray* out, QString* err) {
     std::vector<uchar> buf;
-    cv::imencode(".png", m, buf, {cv::IMWRITE_PNG_COMPRESSION, 3});
-    return QByteArray(reinterpret_cast<const char*>(buf.data()), int(buf.size()));
+    try {
+        if (!cv::imencode(".png", m, buf, {cv::IMWRITE_PNG_COMPRESSION, 3})) { *err = "encodage PNG impossible."; return false; }
+    } catch (const cv::Exception& e) { *err = QString("encodage PNG impossible (%1).").arg(e.what()); return false; }
+    if (qint64(buf.size()) > MAX_PNG_BYTES) {
+        *err = QString("trop volumineux pour un projet .pcl (PNG compressé de %1, limite %2). Réduisez la taille de l'image, "
+                       "ou exportez une version aplatie (TIFF).").arg(mu::humanSize(qint64(buf.size())), mu::humanSize(MAX_PNG_BYTES));
+        return false;
+    }
+    *out = QByteArray(reinterpret_cast<const char*>(buf.data()), int(buf.size()));
+    return true;
 }
 static cv::Mat decodePng(const QByteArray& b, int flags) {
     if (b.isEmpty()) return cv::Mat();
     std::vector<uchar> v(b.begin(), b.end());
-    return cv::imdecode(v, flags);
+    try { return cv::imdecode(v, flags); } catch (const cv::Exception&) { return cv::Mat(); }   // PNG corrompu ou mémoire insuffisante
+}
+
+// Dimensions déclarées par l'en-tête IHDR d'un PNG, lues SANS le décoder : un calque de mauvaise taille est rejeté
+// avant qu'imdecode n'alloue quoi que ce soit (bombe de décompression). Taille nulle si ce n'est pas un PNG.
+static cv::Size pngSize(const QByteArray& b) {
+    if (b.size() < 24 || !b.startsWith("\x89PNG\r\n\x1a\n") || b.mid(12, 4) != "IHDR") return {};
+    const auto* p = reinterpret_cast<const uchar*>(b.constData());
+    return {int(qFromBigEndian<quint32>(p + 16)), int(qFromBigEndian<quint32>(p + 20))};
+}
+
+// Décode un plan de projet (calque ou masque) en exigeant exactement la taille du document et le type attendu : le
+// compositeur indexe image et masque avec les coordonnées du document, sans revérifier.
+static cv::Mat decodePlane(const QByteArray& b, int flags, int type, cv::Size expected) {
+    if (pngSize(b) != expected) return cv::Mat();
+    cv::Mat m = decodePng(b, flags);
+    return (m.type() == type && m.size() == expected) ? m : cv::Mat();
 }
 
 static bool saveProject(Document* d, const QString& path, QString* err) {
-    QFile f(path);
+    // Fichier temporaire, substitué à l'ancien projet seulement par commit() : un échec en cours de route (calque trop
+    // gros, disque plein) laisse intacte la dernière sauvegarde réussie au lieu de la tronquer.
+    QSaveFile f(path);
     if (!f.open(QIODevice::WriteOnly)) { if (err) *err = f.errorString(); return false; }
     QDataStream s(&f);
     s.setVersion(QDataStream::Qt_5_12);
     s << MAGIC << qint32(1) << qint32(d->size().width()) << qint32(d->size().height()) << qint32(d->activeIndex()) << qint32(d->layers().size());
     for (auto& l : d->layers()) {
+        QByteArray img, msk;
+        QString why;
+        if (!encodePng(l->image, &img, &why) || (l->hasMask() && !encodePng(l->mask, &msk, &why))) {
+            if (err) *err = QString("Calque « %1 » : %2").arg(l->props.name, why);
+            return false;                                   // sans commit() : le fichier temporaire est abandonné
+        }
         s << l->props.name << l->props.visible << l->props.locked << l->props.opacity << qint32(l->props.blend) << l->props.maskEnabled;
-        s << encodePng(l->image) << (l->hasMask() ? encodePng(l->mask) : QByteArray());
+        s << img << msk;
         s << l->isText();
         if (l->isText()) {
             const TextData& t = *l->text;
             s << t.text << t.family << qint32(t.pixelSize) << t.bold << t.italic << t.underline << t.color << qint32(t.align) << t.pos;
         }
     }
-    return s.status() == QDataStream::Ok;
+    if (s.status() != QDataStream::Ok || !f.commit()) { if (err) *err = "Écriture impossible : " + f.errorString(); return false; }
+    return true;
 }
 
 static Document* loadProject(const QString& path, QString* err) {
@@ -52,29 +102,42 @@ static Document* loadProject(const QString& path, QString* err) {
     if (!f.open(QIODevice::ReadOnly)) { if (err) *err = f.errorString(); return nullptr; }
     QDataStream s(&f);
     s.setVersion(QDataStream::Qt_5_12);
+    auto fail = [&](const QString& m) -> Document* { if (err) *err = m; return nullptr; };
     quint32 magic; qint32 ver, w, h, active, n;
     s >> magic >> ver >> w >> h >> active >> n;
-    if (magic != MAGIC || w <= 0 || h <= 0 || n < 0) { if (err) *err = "Fichier de projet invalide."; return nullptr; }
-    std::unique_ptr<Document> d(new Document(QSize(w, h)));
-    Document::Structure st{QSize(w, h), {}, active};
+    if (s.status() != QDataStream::Ok || magic != MAGIC || n < 1) return fail("Fichier de projet invalide.");
+    if (ver != 1) return fail(QString("Version de projet non prise en charge (%1).").arg(ver));
+    if (w <= 0 || h <= 0 || w > MAX_SIDE || h > MAX_SIDE || qint64(w) * h > MAX_PIXELS)
+        return fail(QString("Dimensions du projet hors limites (%1 × %2 px ; maximum %3 px de côté et %4 mégapixels).")
+                        .arg(w).arg(h).arg(MAX_SIDE).arg(MAX_PIXELS / 1000000));
+    const cv::Size size(w, h);
+    // Index actif ramené dans les bornes : plusieurs opérations (supprimer, fusionner, déplacer) l'utilisent tel quel.
+    Document::Structure st{QSize(w, h), {}, std::clamp(active, 0, n - 1)};
     for (int i = 0; i < n; ++i) {
         LayerProps p; qint32 blend; QByteArray img, msk; bool isText;
         s >> p.name >> p.visible >> p.locked >> p.opacity >> blend >> p.maskEnabled >> img >> msk >> isText;
+        if (s.status() != QDataStream::Ok || blend < 0 || blend >= int(BlendMode::Count) || !std::isfinite(p.opacity))
+            return fail("Calque corrompu.");
         p.blend = BlendMode(blend);
-        cv::Mat m = decodePng(img, cv::IMREAD_UNCHANGED);
-        if (m.empty() || m.channels() != 4 || m.size() != cv::Size(w, h)) { if (err) *err = "Calque corrompu."; return nullptr; }
+        p.opacity = std::clamp(p.opacity, 0.f, 1.f);
+        cv::Mat m = decodePlane(img, cv::IMREAD_UNCHANGED, CV_8UC4, size);
+        if (m.empty()) return fail("Calque corrompu.");
         auto l = Layer::create(p.name, m);
         l->props = p;
-        l->mask = decodePng(msk, cv::IMREAD_GRAYSCALE);
+        if (!msk.isEmpty()) {
+            l->mask = decodePlane(msk, cv::IMREAD_GRAYSCALE, CV_8UC1, size);
+            if (l->mask.empty()) return fail("Masque de calque corrompu.");
+        }
         if (isText) {
             TextData t; qint32 px, al;
             s >> t.text >> t.family >> px >> t.bold >> t.italic >> t.underline >> t.color >> al >> t.pos;
-            t.pixelSize = px; t.align = al;
+            t.pixelSize = std::clamp(px, 1, MAX_TEXT_PIXEL_SIZE); t.align = al;
             l->text = t;
         }
         st.layers.push_back(l);
     }
-    if (s.status() != QDataStream::Ok) { if (err) *err = "Lecture incomplète."; return nullptr; }
+    if (s.status() != QDataStream::Ok) return fail("Lecture incomplète.");
+    std::unique_ptr<Document> d(new Document(QSize(w, h)));   // composite alloué seulement une fois tout le contenu validé
     d->applyStructure(st);
     d->path = path;
     d->undoStack()->clear();

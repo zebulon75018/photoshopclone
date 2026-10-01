@@ -87,7 +87,7 @@ qint64 ggufFixedSize(quint32 type) {
 
 // Lit une valeur GGUF de type `type` et avance le fichier de la bonne quantité — y compris pour les types qu'on
 // n'affiche pas (tableaux…), ce qui est ce qui permet de continuer à parser le reste du fichier sans décalage.
-bool ggufReadValue(QFile& f, quint32 type, QString* asText) {
+bool ggufReadValue(QFile& f, quint32 type, QString* asText, int depth = 0) {
     if (const qint64 fixed = ggufFixedSize(type); fixed > 0) {
         const QByteArray b = f.read(fixed);
         if (b.size() != fixed) return false;
@@ -116,13 +116,14 @@ bool ggufReadValue(QFile& f, quint32 type, QString* asText) {
         return true;
     }
     if (type == G_ARRAY) {
+        if (depth >= 8) return false;                    // garde-fou : des tableaux imbriqués sans fin épuiseraient la pile (vrais fichiers : 1 niveau)
         quint32 subtype = 0;
         quint64 count = 0;
         if (f.read(reinterpret_cast<char*>(&subtype), 4) != 4) return false;
         if (f.read(reinterpret_cast<char*>(&count), 8) != 8) return false;
         if (count > 5'000'000ull) return false;          // garde-fou
         for (quint64 i = 0; i < count; ++i)
-            if (!ggufReadValue(f, subtype, nullptr)) return false;
+            if (!ggufReadValue(f, subtype, nullptr, depth + 1)) return false;
         if (asText) *asText = QString("[tableau de %1 élément(s)]").arg(count);
         return true;
     }
@@ -279,8 +280,12 @@ bool zipReadCentralDirectory(QFile& f, std::vector<ZipEntry>* entries, QString* 
         memcpy(&cdSize, rec.constData() + 40, 8);
         memcpy(&cdOffset, rec.constData() + 48, 8);
     }
-    if (cdOffset + cdSize > quint64(fsize)) { *err = "la table centrale déclarée dépasse la taille du fichier : archive tronquée ou corrompue."; return false; }
+    if (cdOffset > quint64(fsize) || cdSize > quint64(fsize) - cdOffset) {   // écrit sans addition : cdOffset + cdSize peut déborder (Zip64 forgé)
+        *err = "la table centrale déclarée dépasse la taille du fichier : archive tronquée ou corrompue.";
+        return false;
+    }
     if (entryCount > 2'000'000ull) { *err = "nombre d'entrées invraisemblable : archive corrompue."; return false; }
+    if (cdSize > (256ull << 20)) { *err = "table centrale invraisemblablement grande : archive corrompue."; return false; }   // garde-fou mémoire : quelques centaines de Kio en pratique
 
     f.seek(qint64(cdOffset));
     const QByteArray cd = f.read(qint64(cdSize));
