@@ -32,7 +32,7 @@ private:
 class HistoryPanel : public QUndoView {
     Q_OBJECT
 public:
-    explicit HistoryPanel(QWidget* parent = nullptr) : QUndoView(parent) { setEmptyLabel("État initial"); }
+    explicit HistoryPanel(QWidget* parent = nullptr) : QUndoView(parent) { setEmptyLabel(tr("État initial")); }
     void setDocument(Document* d) { setStack(d ? d->undoStack() : nullptr); }
 };
 

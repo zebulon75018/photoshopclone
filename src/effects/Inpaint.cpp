@@ -5,6 +5,9 @@
 #include <opencv2/photo.hpp>
 #include <algorithm>
 #include <cmath>
+#include <QCoreApplication>
+
+namespace { struct Tr { Q_DECLARE_TR_FUNCTIONS(Inpaint) }; }   // traductions hors classes QObject (voir translations/)
 
 cv::Mat inpaintBGRA(const cv::Mat& src, const cv::Mat& sel, const InpaintParams& p) {
     if (sel.empty() || src.empty()) return src.clone();
@@ -58,7 +61,7 @@ cv::Mat inpaintMiGan(const cv::Mat& src, const cv::Mat& sel, int expand, QString
 
     auto r = AIBackend::inpaint(src(crop).clone(), bin(crop).clone());
     if (!r.ok || r.data.size() != cv::Size(side, side)) {
-        if (error) *error = r.ok ? QString("MI-GAN : taille de sortie inattendue.") : r.error;
+        if (error) *error = r.ok ? Tr::tr("MI-GAN : taille de sortie inattendue.") : r.error;
         return src.clone();
     }
     cv::Mat result = src.clone();

@@ -1,11 +1,14 @@
 #include "BlendModes.h"
 #include <algorithm>
 #include <cmath>
+#include <QCoreApplication>
+
+namespace { struct Tr { Q_DECLARE_TR_FUNCTIONS(BlendModes) }; }   // traductions hors classes QObject (voir translations/)
 
 QStringList blendModeNames() {
-    return {"Normal", "Obscurcir", "Produit", "Densité couleur +", "Densité linéaire +", "Éclaircir",
-            "Superposition", "Densité couleur -", "Densité linéaire -", "Incrustation", "Lumière tamisée",
-            "Lumière crue", "Différence", "Exclusion", "Teinte", "Saturation", "Couleur", "Luminosité"};
+    return {Tr::tr("Normal"), Tr::tr("Obscurcir"), Tr::tr("Produit"), Tr::tr("Densité couleur +"), Tr::tr("Densité linéaire +"), Tr::tr("Éclaircir"),
+            Tr::tr("Superposition"), Tr::tr("Densité couleur -"), Tr::tr("Densité linéaire -"), Tr::tr("Incrustation"), Tr::tr("Lumière tamisée"),
+            Tr::tr("Lumière crue"), Tr::tr("Différence"), Tr::tr("Exclusion"), Tr::tr("Teinte"), Tr::tr("Saturation"), Tr::tr("Couleur"), Tr::tr("Luminosité")};
 }
 
 namespace {

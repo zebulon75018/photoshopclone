@@ -11,7 +11,7 @@
 // ============================================================================ Texte
 void TextTool::buildOptions(OptionsBar& o) {
     o.addFontControls();
-    o.addLabel("  Clic : nouveau texte / modifier le calque texte actif");
+    o.addLabel(tr("  Clic : nouveau texte / modifier le calque texte actif"));
 }
 
 void TextTool::press(const ToolEvent& e) {
@@ -30,12 +30,12 @@ void TextTool::press(const ToolEvent& e) {
 
 // ============================================================================ Formes
 void ShapeTool::buildOptions(OptionsBar& o) {
-    o.addCombo("Forme :", {"Rectangle", "Rectangle arrondi", "Ellipse", "Ligne"}, &st().shapeKind);
-    o.addCheck("Remplissage (couleur PP)", &st().shapeFill);
-    o.addCheck("Contour (couleur AP)", &st().shapeStroke);
-    o.addSpin("Épaisseur :", &st().strokeWidth, 1, 200, " px");
-    o.addSpin("Rayon :", &st().cornerRadius, 0, 500, " px");
-    o.addSpin("Opacité :", &st().opacity, 1, 100, " %");
+    o.addCombo(tr("Forme :"), {tr("Rectangle"), tr("Rectangle arrondi"), tr("Ellipse"), tr("Ligne")}, &st().shapeKind);
+    o.addCheck(tr("Remplissage (couleur PP)"), &st().shapeFill);
+    o.addCheck(tr("Contour (couleur AP)"), &st().shapeStroke);
+    o.addSpin(tr("Épaisseur :"), &st().strokeWidth, 1, 200, " px");
+    o.addSpin(tr("Rayon :"), &st().cornerRadius, 0, 500, " px");
+    o.addSpin(tr("Opacité :"), &st().opacity, 1, 100, " %");
 }
 
 QRectF ShapeTool::rectFor(const ToolEvent& e) const {
@@ -92,7 +92,7 @@ void ShapeTool::release(const ToolEvent& e) {
         Blend::over(full, m, {0, 0}, mu::bounds(full), BlendMode::Normal, float(st().opacity / 100.0), cv::Mat(), e.doc->selection());
         m = full;
     }
-    Ops::addLayerWithImage(e.doc, m, "Forme");
+    Ops::addLayerWithImage(e.doc, m, tr("Forme"));
 }
 
 // ============================================================================ Main / Zoom

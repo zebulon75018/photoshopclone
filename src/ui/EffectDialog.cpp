@@ -55,7 +55,7 @@ void EffectDialog::buildUi() {
             auto paint = [b](const QColor& c) { b->setStyleSheet(QString("background:%1;min-height:20px;").arg(c.name())); };
             paint(m_params.color(key));
             connect(b, &QPushButton::clicked, this, [this, key, paint] {
-                QColor c = Dlg::pickColor(m_params.color(key), "Couleur", this);
+                QColor c = Dlg::pickColor(m_params.color(key), tr("Couleur"), this);
                 if (c.isValid()) { m_params.set(key, c); paint(c); schedulePreview(); }
             });
             form->addRow(d.label + " :", b);
@@ -77,7 +77,7 @@ void EffectDialog::buildUi() {
     m_error->setStyleSheet("color:#ff8a80;");
     m_error->hide();
     root->addWidget(m_error);
-    auto* prev = new QCheckBox("Aperçu"); prev->setChecked(true);
+    auto* prev = new QCheckBox(tr("Aperçu")); prev->setChecked(true);
     connect(prev, &QCheckBox::toggled, this, [this](bool on) { m_preview = on; if (on) preview(); else restore(); });
     auto* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Reset);
     frenchButtons(bb);

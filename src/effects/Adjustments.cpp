@@ -1,5 +1,8 @@
 #include "EffectUtil.h"
 #include <algorithm>
+#include <QCoreApplication>
+
+namespace { struct Tr { Q_DECLARE_TR_FUNCTIONS(Adjustments) }; }   // traductions hors classes QObject (voir translations/)
 
 using fx::onBGR; using fx::clampU8;
 using Lut = std::array<uchar, 256>;
@@ -75,16 +78,16 @@ inline float cl(float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 }
 
 void registerAdjustments(EffectRegistry& R) {
-    R.add("adjust.brightness", "Luminosité/Contraste…", "Réglages", {P::Int("b", "Luminosité", -100, 100, 0), P::Int("c", "Contraste", -100, 100, 0)},
+    R.add("adjust.brightness", Tr::tr("Luminosité/Contraste…"), Tr::tr("Réglages"), {P::Int("b", Tr::tr("Luminosité"), -100, 100, 0), P::Int("c", Tr::tr("Contraste"), -100, 100, 0)},
           [](const cv::Mat& s, const Params& p) {
               double c = p.d("c") * 2.55, f = (259.0 * (c + 255.0)) / (255.0 * (259.0 - c)), b = p.d("b") * 2.55;
               Lut l; for (int i = 0; i < 256; ++i) l[i] = clampU8(f * (i - 128) + 128 + b);
               return fx::applyLut(s, l);
           });
 
-    R.add("adjust.levels", "Niveaux…", "Réglages",
-          {P::Choice("ch", "Couche", {"RVB", "Rouge", "Vert", "Bleu"}), P::Int("ib", "Entrée : noir", 0, 254, 0), P::Dbl("g", "Gamma", 0.1, 9.99, 1.0, 2),
-           P::Int("iw", "Entrée : blanc", 1, 255, 255), P::Int("ob", "Sortie : noir", 0, 255, 0), P::Int("ow", "Sortie : blanc", 0, 255, 255)},
+    R.add("adjust.levels", Tr::tr("Niveaux…"), Tr::tr("Réglages"),
+          {P::Choice("ch", Tr::tr("Couche"), {Tr::tr("RVB"), Tr::tr("Rouge"), Tr::tr("Vert"), Tr::tr("Bleu")}), P::Int("ib", Tr::tr("Entrée : noir"), 0, 254, 0), P::Dbl("g", Tr::tr("Gamma"), 0.1, 9.99, 1.0, 2),
+           P::Int("iw", Tr::tr("Entrée : blanc"), 1, 255, 255), P::Int("ob", Tr::tr("Sortie : noir"), 0, 255, 0), P::Int("ow", Tr::tr("Sortie : blanc"), 0, 255, 255)},
           [](const cv::Mat& s, const Params& p) {
               Lut l, id = identity();
               double ib = p.d("ib"), iw = std::max(ib + 1, p.d("iw")), ob = p.d("ob"), ow = p.d("ow"), ig = 1.0 / p.d("g");
@@ -96,7 +99,7 @@ void registerAdjustments(EffectRegistry& R) {
               return fx::applyLut(s, ch == 0 || ch == 3 ? l : id, ch == 0 || ch == 2 ? l : id, ch == 0 || ch == 1 ? l : id);
           });
 
-    R.add("adjust.curves", "Courbes…", "Réglages", {P::Curve("rgb", "RVB"), P::Curve("r", "Rouge"), P::Curve("g", "Vert"), P::Curve("b", "Bleu")},
+    R.add("adjust.curves", Tr::tr("Courbes…"), Tr::tr("Réglages"), {P::Curve("rgb", Tr::tr("RVB")), P::Curve("r", Tr::tr("Rouge")), P::Curve("g", Tr::tr("Vert")), P::Curve("b", Tr::tr("Bleu"))},
           [](const cv::Mat& s, const Params& p) {
               Lut m = curveLut(p.curve("rgb")), r = curveLut(p.curve("r")), g = curveLut(p.curve("g")), b = curveLut(p.curve("b"));
               Lut R2, G2, B2;
@@ -104,14 +107,14 @@ void registerAdjustments(EffectRegistry& R) {
               return fx::applyLut(s, B2, G2, R2);
           });
 
-    R.add("adjust.exposure", "Exposition…", "Réglages", {P::Dbl("ev", "Exposition (IL)", -5, 5, 0, 2), P::Dbl("off", "Décalage", -0.5, 0.5, 0, 3), P::Dbl("g", "Gamma", 0.1, 5, 1, 2)},
+    R.add("adjust.exposure", Tr::tr("Exposition…"), Tr::tr("Réglages"), {P::Dbl("ev", Tr::tr("Exposition (IL)"), -5, 5, 0, 2), P::Dbl("off", Tr::tr("Décalage"), -0.5, 0.5, 0, 3), P::Dbl("g", Tr::tr("Gamma"), 0.1, 5, 1, 2)},
           [](const cv::Mat& s, const Params& p) {
               Lut l; double k = std::pow(2.0, p.d("ev"));
               for (int i = 0; i < 256; ++i) l[i] = clampU8(std::pow(std::clamp(i / 255.0 * k + p.d("off"), 0.0, 1.0), 1.0 / p.d("g")) * 255.0);
               return fx::applyLut(s, l);
           });
 
-    R.add("adjust.huesat", "Teinte/Saturation…", "Réglages", {P::Int("h", "Teinte", -180, 180, 0), P::Int("s", "Saturation", -100, 100, 0), P::Int("l", "Luminosité", -100, 100, 0)},
+    R.add("adjust.huesat", Tr::tr("Teinte/Saturation…"), Tr::tr("Réglages"), {P::Int("h", Tr::tr("Teinte"), -180, 180, 0), P::Int("s", Tr::tr("Saturation"), -100, 100, 0), P::Int("l", Tr::tr("Luminosité"), -100, 100, 0)},
           [](const cv::Mat& s, const Params& p) {
               float dh = float(p.d("h")), ds = float(p.d("s") / 100.0), dl = float(p.d("l") / 100.0);
               return viaHLS(s, [=](float& h, float& l, float& sa) {
@@ -121,17 +124,17 @@ void registerAdjustments(EffectRegistry& R) {
               });
           });
 
-    R.add("adjust.vibrance", "Vibrance…", "Réglages", {P::Int("v", "Vibrance", -100, 100, 30), P::Int("s", "Saturation", -100, 100, 0)},
+    R.add("adjust.vibrance", Tr::tr("Vibrance…"), Tr::tr("Réglages"), {P::Int("v", Tr::tr("Vibrance"), -100, 100, 30), P::Int("s", Tr::tr("Saturation"), -100, 100, 0)},
           [](const cv::Mat& s, const Params& p) {
               float v = float(p.d("v") / 100.0), ds = float(p.d("s") / 100.0);
               return viaHLS(s, [=](float&, float&, float& sa) { sa = cl(sa * (1 + ds) + v * 2 * sa * (1 - sa)); });
           });
 
-    R.add("adjust.colorbalance", "Balance des couleurs…", "Réglages",
-          {P::Int("sr", "Ombres : Cyan ↔ Rouge", -100, 100, 0), P::Int("sg", "Ombres : Magenta ↔ Vert", -100, 100, 0), P::Int("sb", "Ombres : Jaune ↔ Bleu", -100, 100, 0),
-           P::Int("mr", "Tons moyens : Cyan ↔ Rouge", -100, 100, 0), P::Int("mg", "Tons moyens : Magenta ↔ Vert", -100, 100, 0), P::Int("mb", "Tons moyens : Jaune ↔ Bleu", -100, 100, 0),
-           P::Int("hr", "Hautes lumières : Cyan ↔ Rouge", -100, 100, 0), P::Int("hg", "Hautes lumières : Magenta ↔ Vert", -100, 100, 0), P::Int("hb", "Hautes lumières : Jaune ↔ Bleu", -100, 100, 0),
-           P::Bool("keep", "Conserver la luminosité", true)},
+    R.add("adjust.colorbalance", Tr::tr("Balance des couleurs…"), Tr::tr("Réglages"),
+          {P::Int("sr", Tr::tr("Ombres : Cyan ↔ Rouge"), -100, 100, 0), P::Int("sg", Tr::tr("Ombres : Magenta ↔ Vert"), -100, 100, 0), P::Int("sb", Tr::tr("Ombres : Jaune ↔ Bleu"), -100, 100, 0),
+           P::Int("mr", Tr::tr("Tons moyens : Cyan ↔ Rouge"), -100, 100, 0), P::Int("mg", Tr::tr("Tons moyens : Magenta ↔ Vert"), -100, 100, 0), P::Int("mb", Tr::tr("Tons moyens : Jaune ↔ Bleu"), -100, 100, 0),
+           P::Int("hr", Tr::tr("Hautes lumières : Cyan ↔ Rouge"), -100, 100, 0), P::Int("hg", Tr::tr("Hautes lumières : Magenta ↔ Vert"), -100, 100, 0), P::Int("hb", Tr::tr("Hautes lumières : Jaune ↔ Bleu"), -100, 100, 0),
+           P::Bool("keep", Tr::tr("Conserver la luminosité"), true)},
           [](const cv::Mat& s, const Params& p) {
               double sh[3] = {p.d("sr"), p.d("sg"), p.d("sb")}, mi[3] = {p.d("mr"), p.d("mg"), p.d("mb")}, hi[3] = {p.d("hr"), p.d("hg"), p.d("hb")};
               bool keep = p.b("keep");
@@ -152,7 +155,7 @@ void registerAdjustments(EffectRegistry& R) {
               return out;
           });
 
-    R.add("adjust.bw", "Noir et blanc…", "Réglages", {P::Int("r", "Rouges (%)", -200, 300, 30), P::Int("g", "Verts (%)", -200, 300, 59), P::Int("b", "Bleus (%)", -200, 300, 11)},
+    R.add("adjust.bw", Tr::tr("Noir et blanc…"), Tr::tr("Réglages"), {P::Int("r", Tr::tr("Rouges (%)"), -200, 300, 30), P::Int("g", Tr::tr("Verts (%)"), -200, 300, 59), P::Int("b", Tr::tr("Bleus (%)"), -200, 300, 11)},
           [](const cv::Mat& s, const Params& p) {
               return onBGR(s, [&](const cv::Mat& m) {
                   cv::Mat g, o;
@@ -163,9 +166,9 @@ void registerAdjustments(EffectRegistry& R) {
               });
           });
 
-    R.add("adjust.photofilter", "Filtre photo…", "Réglages",
-          {P::Choice("preset", "Filtre", {"Réchauffant (85)", "Refroidissant (80)", "Sépia", "Personnalisé"}, 0), P::Color("color", "Couleur (si personnalisé)", QColor(255, 140, 0)),
-           P::Int("density", "Densité (%)", 0, 100, 25), P::Bool("keep", "Conserver la luminosité", true)},
+    R.add("adjust.photofilter", Tr::tr("Filtre photo…"), Tr::tr("Réglages"),
+          {P::Choice("preset", Tr::tr("Filtre"), {Tr::tr("Réchauffant (85)"), Tr::tr("Refroidissant (80)"), Tr::tr("Sépia"), Tr::tr("Personnalisé")}, 0), P::Color("color", Tr::tr("Couleur (si personnalisé)"), QColor(255, 140, 0)),
+           P::Int("density", Tr::tr("Densité (%)"), 0, 100, 25), P::Bool("keep", Tr::tr("Conserver la luminosité"), true)},
           [](const cv::Mat& s, const Params& p) {
               static const QColor presets[] = {QColor(236, 138, 0), QColor(0, 109, 255), QColor(172, 122, 51)};
               QColor c = p.i("preset") < 3 ? presets[p.i("preset")] : p.color("color");
@@ -185,7 +188,7 @@ void registerAdjustments(EffectRegistry& R) {
               return out;
           });
 
-    R.add("adjust.shadowhl", "Ombres/Hautes lumières…", "Réglages", {P::Int("sh", "Ombres (%)", 0, 100, 35), P::Int("hl", "Hautes lumières (%)", 0, 100, 0), P::Int("r", "Rayon (px)", 1, 200, 30)},
+    R.add("adjust.shadowhl", Tr::tr("Ombres/Hautes lumières…"), Tr::tr("Réglages"), {P::Int("sh", Tr::tr("Ombres (%)"), 0, 100, 35), P::Int("hl", Tr::tr("Hautes lumières (%)"), 0, 100, 0), P::Int("r", Tr::tr("Rayon (px)"), 1, 200, 30)},
           [](const cv::Mat& s, const Params& p) {
               return onBGR(s, [&](const cv::Mat& m) {
                   cv::Mat g, lb, f, o; cv::cvtColor(m, g, cv::COLOR_BGR2GRAY);
@@ -206,14 +209,14 @@ void registerAdjustments(EffectRegistry& R) {
               });
           });
 
-    R.add("adjust.invert", "Négatif", "Réglages", {}, [](const cv::Mat& s, const Params&) { return onBGR(s, [](const cv::Mat& m) { cv::Mat o; cv::bitwise_not(m, o); return o; }); });
-    R.add("adjust.desaturate", "Désaturation", "Réglages", {},
+    R.add("adjust.invert", Tr::tr("Négatif"), Tr::tr("Réglages"), {}, [](const cv::Mat& s, const Params&) { return onBGR(s, [](const cv::Mat& m) { cv::Mat o; cv::bitwise_not(m, o); return o; }); });
+    R.add("adjust.desaturate", Tr::tr("Désaturation"), Tr::tr("Réglages"), {},
           [](const cv::Mat& s, const Params&) { return onBGR(s, [](const cv::Mat& m) { cv::Mat g, o; cv::cvtColor(m, g, cv::COLOR_BGR2GRAY); cv::cvtColor(g, o, cv::COLOR_GRAY2BGR); return o; }); });
-    R.add("adjust.threshold", "Seuil…", "Réglages", {P::Int("t", "Niveau de seuil", 1, 255, 128)},
+    R.add("adjust.threshold", Tr::tr("Seuil…"), Tr::tr("Réglages"), {P::Int("t", Tr::tr("Niveau de seuil"), 1, 255, 128)},
           [](const cv::Mat& s, const Params& p) {
               return onBGR(s, [&](const cv::Mat& m) { cv::Mat g, o; cv::cvtColor(m, g, cv::COLOR_BGR2GRAY); cv::threshold(g, g, p.d("t") - 1, 255, cv::THRESH_BINARY); cv::cvtColor(g, o, cv::COLOR_GRAY2BGR); return o; });
           });
-    R.add("adjust.posterize", "Isohélie…", "Réglages", {P::Int("n", "Niveaux", 2, 64, 4)},
+    R.add("adjust.posterize", Tr::tr("Isohélie…"), Tr::tr("Réglages"), {P::Int("n", Tr::tr("Niveaux"), 2, 64, 4)},
           [](const cv::Mat& s, const Params& p) {
               Lut l; int n = p.i("n");
               for (int i = 0; i < 256; ++i) l[i] = clampU8(std::floor(i * n / 256.0) * 255.0 / (n - 1));
@@ -221,20 +224,20 @@ void registerAdjustments(EffectRegistry& R) {
           });
 
     // --- Corrections automatiques
-    R.add("adjust.autotone", "Niveaux automatiques", "Auto", {},
+    R.add("adjust.autotone", Tr::tr("Niveaux automatiques"), Tr::tr("Auto"), {},
           [](const cv::Mat& s, const Params&) {
               cv::Mat bgr, a, ch[3]; fx::split(s, bgr, a); cv::split(bgr, ch);
               Lut L[3];
               for (int c = 0; c < 3; ++c) { int lo, hi; stretchPoints(ch[c], 0.005, lo, hi); L[c] = stretchLut(lo, hi); }
               return fx::applyLut(s, L[0], L[1], L[2]);
           });
-    R.add("adjust.autocontrast", "Contraste automatique", "Auto", {},
+    R.add("adjust.autocontrast", Tr::tr("Contraste automatique"), Tr::tr("Auto"), {},
           [](const cv::Mat& s, const Params&) {
               cv::Mat bgr, a, g; fx::split(s, bgr, a); cv::cvtColor(bgr, g, cv::COLOR_BGR2GRAY);
               int lo, hi; stretchPoints(g, 0.005, lo, hi);
               return fx::applyLut(s, stretchLut(lo, hi));
           });
-    R.add("adjust.autocolor", "Couleur automatique", "Auto", {},
+    R.add("adjust.autocolor", Tr::tr("Couleur automatique"), Tr::tr("Auto"), {},
           [](const cv::Mat& s, const Params&) {   // balance des gris + étirement
               cv::Mat bgr, a; fx::split(s, bgr, a);
               cv::Scalar m = cv::mean(bgr); double g = (m[0] + m[1] + m[2]) / 3.0;

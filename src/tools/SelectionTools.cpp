@@ -32,9 +32,9 @@ static void drawAnts(QPainter& p, const std::function<void()>& draw) {
 void MarqueeTool::buildOptions(OptionsBar& o) {
     o.addSelectionModes(&st().selMode);
     o.addSeparator();
-    o.addSpin("Contour progressif :", &st().feather, 0, 250, " px");
-    o.addCheck("Lissage", &st().antiAlias);
-    o.addLabel("   Maj : carré/cercle • Alt : depuis le centre");
+    o.addSpin(tr("Contour progressif :"), &st().feather, 0, 250, " px");
+    o.addCheck(tr("Lissage"), &st().antiAlias);
+    o.addLabel(tr("   Maj : carré/cercle • Alt : depuis le centre"));
 }
 
 QRectF MarqueeTool::rectFor(const ToolEvent& e) const {
@@ -54,7 +54,7 @@ void MarqueeTool::move(const ToolEvent& e) {
     if (!m_drag) return;
     m_rect = rectFor(e);
     e.view->refresh();
-    Workspace::instance().message(QString("Sélection : %1 × %2 px").arg(int(m_rect.width())).arg(int(m_rect.height())));
+    Workspace::instance().message(tr("Sélection : %1 × %2 px").arg(int(m_rect.width())).arg(int(m_rect.height())));
 }
 
 void MarqueeTool::release(const ToolEvent& e) {
@@ -79,7 +79,7 @@ void MarqueeTool::paintOverlay(QPainter& p, CanvasView* v) {
 void LassoTool::buildOptions(OptionsBar& o) {
     o.addSelectionModes(&st().selMode);
     o.addSeparator();
-    o.addSpin("Contour progressif :", &st().feather, 0, 250, " px");
+    o.addSpin(tr("Contour progressif :"), &st().feather, 0, 250, " px");
 }
 void LassoTool::press(const ToolEvent& e) { if (e.button == Qt::LeftButton) { m_drag = true; m_poly.clear(); m_poly << e.pos; m_mode = modeFor(e); } }
 void LassoTool::move(const ToolEvent& e) {
@@ -89,7 +89,7 @@ void LassoTool::move(const ToolEvent& e) {
 void LassoTool::release(const ToolEvent& e) {
     if (!m_drag) return;
     m_drag = false;
-    if (m_poly.size() >= 3) commitShape(e.doc, Sel::fromPolygon(e.doc->size(), m_poly), m_mode, "Lasso");
+    if (m_poly.size() >= 3) commitShape(e.doc, Sel::fromPolygon(e.doc->size(), m_poly), m_mode, tr("Lasso"));
     m_poly.clear();
     e.view->refresh();
 }
@@ -103,8 +103,8 @@ void LassoTool::paintOverlay(QPainter& p, CanvasView* v) {
 void PolyLassoTool::buildOptions(OptionsBar& o) {
     o.addSelectionModes(&st().selMode);
     o.addSeparator();
-    o.addSpin("Contour progressif :", &st().feather, 0, 250, " px");
-    o.addLabel("   Double-clic / Entrée : fermer • Retour arrière : annuler le dernier point • Maj : angles de 45°");
+    o.addSpin(tr("Contour progressif :"), &st().feather, 0, 250, " px");
+    o.addLabel(tr("   Double-clic / Entrée : fermer • Retour arrière : annuler le dernier point • Maj : angles de 45°"));
 }
 void PolyLassoTool::press(const ToolEvent& e) {
     if (e.button != Qt::LeftButton) return;
@@ -123,7 +123,7 @@ void PolyLassoTool::press(const ToolEvent& e) {
 void PolyLassoTool::move(const ToolEvent& e) { m_hover = e.pos; if (!m_poly.isEmpty()) e.view->refresh(); }
 void PolyLassoTool::close() {
     Document* d = Workspace::instance().doc();
-    if (d && m_poly.size() >= 3) commitShape(d, Sel::fromPolygon(d->size(), m_poly), m_mode, "Lasso polygonal");
+    if (d && m_poly.size() >= 3) commitShape(d, Sel::fromPolygon(d->size(), m_poly), m_mode, tr("Lasso polygonal"));
     m_poly.clear();
     if (auto* v = Workspace::instance().view()) v->refresh();
 }
@@ -148,10 +148,10 @@ void PolyLassoTool::paintOverlay(QPainter& p, CanvasView* v) {
 void WandTool::buildOptions(OptionsBar& o) {
     o.addSelectionModes(&st().selMode);
     o.addSeparator();
-    o.addSpin("Tolérance :", &st().tolerance, 0, 255);
-    o.addCheck("Lissage", &st().antiAlias);
-    o.addCheck("Pixels contigus", &st().contiguous);
-    o.addCheck("Échantillonner tous les calques", &st().sampleAll);
+    o.addSpin(tr("Tolérance :"), &st().tolerance, 0, 255);
+    o.addCheck(tr("Lissage"), &st().antiAlias);
+    o.addCheck(tr("Pixels contigus"), &st().contiguous);
+    o.addCheck(tr("Échantillonner tous les calques"), &st().sampleAll);
 }
 void WandTool::press(const ToolEvent& e) {
     if (e.button != Qt::LeftButton) return;
@@ -160,5 +160,5 @@ void WandTool::press(const ToolEvent& e) {
     const cv::Mat& src = st().sampleAll ? e.doc->composite() : l->image;
     cv::Mat m = Sel::magicWand(src, cv::Point(int(std::floor(e.pos.x())), int(std::floor(e.pos.y()))), st().tolerance, st().contiguous, st().antiAlias);
     if (m.empty()) return;
-    commitShape(e.doc, m, modeFor(e), "Baguette magique");
+    commitShape(e.doc, m, modeFor(e), tr("Baguette magique"));
 }

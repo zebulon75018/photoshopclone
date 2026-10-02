@@ -9,7 +9,7 @@ bool SelectionTransformTool::begin() {
     endSession();
     Document* d = ws().doc();
     CanvasView* v = ws().view();
-    if (!d || !d->hasSelection()) { if (d) ws().message("Transformation de la sélection : faites d'abord une sélection."); return false; }
+    if (!d || !d->hasSelection()) { if (d) ws().message(tr("Transformation de la sélection : faites d'abord une sélection.")); return false; }
     cv::Rect r = Sel::bounds(d->selection());
     m_contours = Sel::contours(d->selection());
     m_box.reset(QRectF(r.x, r.y, r.width, r.height));
@@ -17,8 +17,8 @@ bool SelectionTransformTool::begin() {
     connect(d, &Document::selectionChanged, this, &SelectionTransformTool::onSelectionChanged, Qt::UniqueConnection);
     if (v) { v->suppressAnts = true; v->refresh(); }       // on dessine nous-mêmes le contour (transformé)
     syncSpins();
-    ws().message(st().selTransformContent ? "Sélection + pixels du calque actif : poignées = échelle • hors du cadre = rotation • Entrée = valider"
-                                          : "Contour seul : poignées = échelle • hors du cadre = rotation • Entrée = valider");
+    ws().message(st().selTransformContent ? tr("Sélection + pixels du calque actif : poignées = échelle • hors du cadre = rotation • Entrée = valider")
+                                          : tr("Contour seul : poignées = échelle • hors du cadre = rotation • Entrée = valider"));
     return true;
 }
 
@@ -36,7 +36,7 @@ bool SelectionTransformTool::ensureContent() {
     if (!m_doc || m_contentFailed) return false;
     if (m_fc.begin(m_doc)) return true;
     m_contentFailed = true;
-    ws().message("Calque masqué ou verrouillé : seul le contour de la sélection est transformé.");
+    ws().message(tr("Calque masqué ou verrouillé : seul le contour de la sélection est transformé."));
     return false;
 }
 
@@ -53,11 +53,11 @@ void SelectionTransformTool::commit(bool restart) {
     if (m_dirty) {
         m_committing = true;
         if (m_fc.active()) {
-            m_fc.commit("Transformation de la sélection");           // pixels + contour = une seule étape d'historique
+            m_fc.commit(tr("Transformation de la sélection"));           // pixels + contour = une seule étape d'historique
         } else {
             cv::Mat out;
             cv::warpAffine(d->selection(), out, m_box.matrix(), d->selection().size(), cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0));
-            d->setSelection(out, "Transformation de la sélection");
+            d->setSelection(out, tr("Transformation de la sélection"));
         }
         m_committing = false;
     }
@@ -103,8 +103,8 @@ void SelectionTransformTool::paintOverlay(QPainter& p, CanvasView* v) {
 
 // ------------------------------------------------------------------------------ barre d'options (contenu + saisie numérique)
 void SelectionTransformTool::buildOptions(OptionsBar& o) {
-    auto* content = new QCheckBox("Transformer le contenu du calque");
-    content->setToolTip("Coché : les pixels du calque actif situés dans la sélection suivent la transformation.\nDécoché : seul le contour de la sélection est transformé.");
+    auto* content = new QCheckBox(tr("Transformer le contenu du calque"));
+    content->setToolTip(tr("Coché : les pixels du calque actif situés dans la sélection suivent la transformation.\nDécoché : seul le contour de la sélection est transformé."));
     content->setChecked(st().selTransformContent);
     connect(content, &QCheckBox::toggled, this, [this](bool on) {
         if (m_active && m_dirty) commit(true);            // valide ce qui a été fait avant de changer de mode
@@ -118,16 +118,16 @@ void SelectionTransformTool::buildOptions(OptionsBar& o) {
         o.addWidget(s);
         return s;
     };
-    o.addLabel("L :");  m_spX = mk(-5000, 5000, " %", 1);
-    m_lock = new QCheckBox("Proportions"); m_lock->setChecked(true); o.addWidget(m_lock);
-    o.addLabel("H :");  m_spY = mk(-5000, 5000, " %", 1);
-    o.addLabel("Rotation :"); m_spA = mk(-360, 360, " °", 1);
+    o.addLabel(tr("L :"));  m_spX = mk(-5000, 5000, " %", 1);
+    m_lock = new QCheckBox(tr("Proportions")); m_lock->setChecked(true); o.addWidget(m_lock);
+    o.addLabel(tr("H :"));  m_spY = mk(-5000, 5000, " %", 1);
+    o.addLabel(tr("Rotation :")); m_spA = mk(-360, 360, " °", 1);
     connect(m_spX, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this] { applyNumeric(true); });
     connect(m_spY, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this] { applyNumeric(false); });
     connect(m_spA, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this] { applyNumeric(true); });
     o.addSeparator();
-    o.addButton("Valider", [this] { commit(true); });
-    o.addButton("Annuler", [this] { endSession(); begin(); });
+    o.addButton(tr("Valider"), [this] { commit(true); });
+    o.addButton(tr("Annuler"), [this] { endSession(); begin(); });
     syncSpins();
 }
 
