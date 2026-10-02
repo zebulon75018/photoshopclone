@@ -4,6 +4,9 @@
 #include "core/Workspace.h"
 #include <opencv2/imgproc.hpp>
 #include <cmath>
+#include <QCoreApplication>
+
+namespace { struct Tr { Q_DECLARE_TR_FUNCTIONS(FloatingContent) }; }   // traductions hors classes QObject (voir translations/)
 
 bool FloatingContent::begin(Document* doc) {
     QString why;
@@ -30,7 +33,7 @@ bool FloatingContent::begin(Document* doc) {
     } else {
         cv::Mat a; cv::extractChannel(l->image, a, 3);
         m_bb = cv::boundingRect(a > 0);
-        if (m_bb.empty()) { Workspace::instance().message("Le calque est vide."); m_doc = nullptr; return false; }
+        if (m_bb.empty()) { Workspace::instance().message(Tr::tr("Le calque est vide.")); m_doc = nullptr; return false; }
         m_patch = l->image(m_bb).clone();
         m_hasHole = false;
     }

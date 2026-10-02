@@ -1,6 +1,9 @@
 #include "AIBackend.h"
 #include "AIModels.h"
+#include <QCoreApplication>
 #include <QFileInfo>
+
+namespace { struct Tr { Q_DECLARE_TR_FUNCTIONS(AIBackend) }; }   // traductions hors classes QObject (voir translations/)
 
 #ifdef PC_HAVE_VISIONCPP
 #include "VispBridge.h"
@@ -8,6 +11,7 @@
 #include <gguf.h>
 #include <optional>
 #include <QFileInfo>
+#include <QCoreApplication>
 
 namespace AIBackend {
 using namespace visp;
@@ -34,12 +38,12 @@ template <class Model, class Loader>
 Model* ensureLoaded(std::optional<Model>& slot, QString& loadedPath, AIArchitecture arch, Loader load, QString* error) {
     QString path = AIModels::modelPath(arch);
     if (path.isEmpty()) {
-        if (error) *error = AIModels::info(arch).name + " : aucun modèle configuré (menu IA > Réglages des modèles…).";
+        if (error) *error = Tr::tr("%1 : aucun modèle configuré (menu IA > Réglages des modèles…).").arg(AIModels::info(arch).name);
         return nullptr;
     }
     if (slot && loadedPath == path) return &*slot;
     if (QString bad = validateModelFile(arch, path); !bad.isEmpty()) {
-        if (error) *error = AIModels::info(arch).name + " : " + bad;
+        if (error) *error = Tr::tr("%1 : %2").arg(AIModels::info(arch).name, bad);
         return nullptr;
     }
     try {
@@ -49,7 +53,7 @@ Model* ensureLoaded(std::optional<Model>& slot, QString& loadedPath, AIArchitect
     } catch (std::exception const& e) {
         slot.reset();
         loadedPath.clear();
-        if (error) *error = AIModels::info(arch).name + " : " + QString::fromUtf8(e.what());
+        if (error) *error = Tr::tr("%1 : %2").arg(AIModels::info(arch).name, QString::fromUtf8(e.what()));
         return nullptr;
     }
 }
@@ -71,29 +75,29 @@ bool available() { return true; }
 
 QString validateModelFile(AIArchitecture arch, const QString& path) {
     QFileInfo fi(path);
-    if (!fi.exists() || !fi.isFile()) return "fichier introuvable : " + path;
-    if (!fi.isReadable()) return "fichier illisible (droits) : " + path;
+    if (!fi.exists() || !fi.isFile()) return Tr::tr("fichier introuvable : %1").arg(path);
+    if (!fi.isReadable()) return Tr::tr("fichier illisible (droits) : %1").arg(path);
     gguf_init_params p{};
     p.no_alloc = true;   // lit uniquement les métadonnées, pas les poids
     p.ctx = nullptr;
     gguf_context* g = gguf_init_from_file(path.toUtf8().constData(), p);
-    if (!g) return "ce fichier n'est pas un modèle GGUF valide.";
+    if (!g) return Tr::tr("ce fichier n'est pas un modèle GGUF valide.");
     QString found;
     int64_t k = gguf_find_key(g, "general.architecture");
     if (k >= 0 && gguf_get_kv_type(g, k) == GGUF_TYPE_STRING) found = QString::fromUtf8(gguf_get_val_str(g, k));
     gguf_free(g);
-    if (found.isEmpty()) return "fichier GGUF sans architecture déclarée (ce n'est pas un modèle vision.cpp).";
+    if (found.isEmpty()) return Tr::tr("fichier GGUF sans architecture déclarée (ce n'est pas un modèle vision.cpp).");
     if (found != expectedArch(arch)) {
         for (const auto& i : AIModels::all())
-            if (found == expectedArch(i.id)) return QString("ce fichier est un modèle %1, pas un modèle %2.").arg(i.name, AIModels::info(arch).name);
-        return QString("architecture « %1 » non prise en charge (attendu : %2).").arg(found, expectedArch(arch));
+            if (found == expectedArch(i.id)) return Tr::tr("ce fichier est un modèle %1, pas un modèle %2.").arg(i.name, AIModels::info(arch).name);
+        return Tr::tr("architecture « %1 » non prise en charge (attendu : %2).").arg(found, expectedArch(arch));
     }
     return {};
 }
 
 Result estimateForeground(const cv::Mat& bgra, const cv::Mat& mask, int radius) {
     Result r;
-    if (bgra.type() != CV_8UC4 || mask.type() != CV_8UC1 || bgra.size() != mask.size()) { r.error = "estimateForeground : image BGRA et masque de même taille attendus."; return r; }
+    if (bgra.type() != CV_8UC4 || mask.type() != CV_8UC1 || bgra.size() != mask.size()) { r.error = Tr::tr("estimateForeground : image BGRA et masque de même taille attendus."); return r; }
     try {
         // La bibliothèque exige des entrées FLOTTANTES (rgba_f32 + alpha_f32) : un masque/une image 8 bits seraient lus
         // comme des flottants (valeurs aberrantes, voire lecture hors tampon). Conversion explicite, RGBA réordonné.
@@ -104,7 +108,7 @@ Result estimateForeground(const cv::Mat& bgra, const cv::Mat& mask, int radius) 
         r.data = ai::toMatBGRA(u8);
         r.ok = true;
     } catch (std::exception const& e) {
-        r.error = QString("Estimation du premier plan : ") + e.what();
+        r.error = Tr::tr("Estimation du premier plan : %1").arg(QString::fromUtf8(e.what()));
     }
     return r;
 }
@@ -119,7 +123,7 @@ Result segmentDichotomous(const cv::Mat& bgra) {
         r.data = ai::toMatGray(mask);
         r.ok = true;
     } catch (std::exception const& e) {
-        r.error = QString("BiRefNet : ") + e.what();
+        r.error = Tr::tr("BiRefNet : %1").arg(QString::fromUtf8(e.what()));
     }
     return r;
 }
@@ -137,7 +141,7 @@ bool samEncode(const cv::Mat& bgra, QString* error) {
         g_samEncoded = true;
         return true;
     } catch (std::exception const& e) {
-        if (error) *error = QString("MobileSAM : ") + e.what();
+        if (error) *error = Tr::tr("MobileSAM : %1").arg(QString::fromUtf8(e.what()));
         g_samEncoded = false;
         return false;
     }
@@ -147,27 +151,27 @@ bool samReady() { return g_samEncoded && g_sam.has_value(); }
 
 Result samComputePoint(QPoint p) {
     Result r;
-    if (!samReady()) { r.error = "MobileSAM : encodez d'abord l'image (activez l'outil, ou \"Ré-analyser l'image\")."; return r; }
+    if (!samReady()) { r.error = Tr::tr("MobileSAM : encodez d'abord l'image (activez l'outil, ou \"Ré-analyser l'image\")."); return r; }
     try {
         image_data mask = sam_compute(*g_sam, i32x2{p.x(), p.y()});
         r.data = ai::toMatGray(mask);
         r.ok = true;
     } catch (std::exception const& e) {
-        r.error = QString("MobileSAM : ") + e.what();
+        r.error = Tr::tr("MobileSAM : %1").arg(QString::fromUtf8(e.what()));
     }
     return r;
 }
 
 Result samComputeBox(QRect box) {
     Result r;
-    if (!samReady()) { r.error = "MobileSAM : encodez d'abord l'image (activez l'outil, ou \"Ré-analyser l'image\")."; return r; }
+    if (!samReady()) { r.error = Tr::tr("MobileSAM : encodez d'abord l'image (activez l'outil, ou \"Ré-analyser l'image\")."); return r; }
     try {
         box_2d b{i32x2{box.left(), box.top()}, i32x2{box.right(), box.bottom()}};
         image_data mask = sam_compute(*g_sam, b);
         r.data = ai::toMatGray(mask);
         r.ok = true;
     } catch (std::exception const& e) {
-        r.error = QString("MobileSAM : ") + e.what();
+        r.error = Tr::tr("MobileSAM : %1").arg(QString::fromUtf8(e.what()));
     }
     return r;
 }
@@ -182,7 +186,7 @@ Result estimateDepth(const cv::Mat& bgra) {
         r.data = ai::toMatGray(depth);
         r.ok = true;
     } catch (std::exception const& e) {
-        r.error = QString("Depth-Anything : ") + e.what();
+        r.error = Tr::tr("Depth-Anything : %1").arg(QString::fromUtf8(e.what()));
     }
     return r;
 }
@@ -198,7 +202,7 @@ Result inpaint(const cv::Mat& bgra, const cv::Mat& mask) {
         r.data = ai::toMatBGRA(out);
         r.ok = true;
     } catch (std::exception const& e) {
-        r.error = QString("MI-GAN : ") + e.what();
+        r.error = Tr::tr("MI-GAN : %1").arg(QString::fromUtf8(e.what()));
     }
     return r;
 }
@@ -214,7 +218,7 @@ Result upscale(const cv::Mat& bgra) {
         r.scale = m->params.scale;
         r.ok = true;
     } catch (std::exception const& e) {
-        r.error = QString("Real-ESRGAN : ") + e.what();
+        r.error = Tr::tr("Real-ESRGAN : %1").arg(QString::fromUtf8(e.what()));
     }
     return r;
 }
@@ -232,22 +236,22 @@ void clearCache() {
 namespace AIBackend {
 static Result unavailable(const QString& fn) {
     Result r;
-    r.error = "La bibliothèque vision.cpp n'a pas été compilée dans cette version de PhotoClone "
-              "(voir depend/visioncpp/BUILD_FROM_SOURCE.md). Fonction demandée : " + fn;
+    r.error = Tr::tr("La bibliothèque vision.cpp n'a pas été compilée dans cette version de PhotoClone "
+                     "(voir depend/visioncpp/BUILD_FROM_SOURCE.md). Fonction demandée : %1").arg(fn);
     return r;
 }
 bool available() { return false; }
 Result segmentDichotomous(const cv::Mat&) { return unavailable("BiRefNet"); }
-bool samEncode(const cv::Mat&, QString* error) { if (error) *error = "MobileSAM : la bibliothèque vision.cpp n'a pas été compilée dans cette version."; return false; }
+bool samEncode(const cv::Mat&, QString* error) { if (error) *error = Tr::tr("MobileSAM : la bibliothèque vision.cpp n'a pas été compilée dans cette version."); return false; }
 bool samReady() { return false; }
 Result samComputePoint(QPoint) { return unavailable("MobileSAM"); }
 Result samComputeBox(QRect) { return unavailable("MobileSAM"); }
 Result estimateDepth(const cv::Mat&) { return unavailable("Depth-Anything"); }
 Result inpaint(const cv::Mat&, const cv::Mat&) { return unavailable("MI-GAN"); }
 Result upscale(const cv::Mat&) { return unavailable("Real-ESRGAN"); }
-Result estimateForeground(const cv::Mat&, const cv::Mat&, int) { return unavailable("estimation du premier plan"); }
+Result estimateForeground(const cv::Mat&, const cv::Mat&, int) { return unavailable(Tr::tr("estimation du premier plan")); }
 QString validateModelFile(AIArchitecture, const QString& path) {
-    return QFileInfo(path).isFile() ? QString() : "fichier introuvable : " + path;
+    return QFileInfo(path).isFile() ? QString() : Tr::tr("fichier introuvable : %1").arg(path);
 }
 void clearCache() {}
 }

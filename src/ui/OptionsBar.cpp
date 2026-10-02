@@ -10,7 +10,7 @@
 #include <QSpinBox>
 #include <QToolButton>
 
-OptionsBar::OptionsBar(QWidget* parent) : QToolBar("Options", parent) {
+OptionsBar::OptionsBar(QWidget* parent) : QToolBar(tr("Options"), parent) {
     setMovable(false);
     setObjectName("OptionsBar");
     setIconSize(QSize(16, 16));
@@ -56,10 +56,10 @@ void OptionsBar::addCombo(const QString& label, const QStringList& items, int* v
 void OptionsBar::addSelectionModes(Sel::Mode* mode) {
     auto* g = new QButtonGroup(this);
     struct M { const char* txt; const char* tip; Sel::Mode m; };
-    for (M m : {M{"Nouvelle", "Nouvelle sélection", Sel::Mode::Replace}, M{"+", "Ajouter à la sélection (Maj)", Sel::Mode::Add},
-                M{"−", "Soustraire de la sélection (Alt)", Sel::Mode::Subtract}, M{"∩", "Intersection avec la sélection (Maj+Alt)", Sel::Mode::Intersect}}) {
+    for (M m : {M{QT_TR_NOOP("Nouvelle"), QT_TR_NOOP("Nouvelle sélection"), Sel::Mode::Replace}, M{"+", QT_TR_NOOP("Ajouter à la sélection (Maj)"), Sel::Mode::Add},
+                M{"−", QT_TR_NOOP("Soustraire de la sélection (Alt)"), Sel::Mode::Subtract}, M{"∩", QT_TR_NOOP("Intersection avec la sélection (Maj+Alt)"), Sel::Mode::Intersect}}) {
         auto* b = new QToolButton;
-        b->setText(m.txt); b->setToolTip(m.tip); b->setCheckable(true); b->setChecked(*mode == m.m);
+        b->setText(tr(m.txt)); b->setToolTip(tr(m.tip)); b->setCheckable(true); b->setChecked(*mode == m.m);
         b->setMinimumWidth(28);
         g->addButton(b);
         Sel::Mode mm = m.m;
@@ -74,16 +74,16 @@ void OptionsBar::addFontControls() {
     f->setCurrentFont(QFont(s.fontFamily));
     connect(f, &QFontComboBox::currentFontChanged, this, [](const QFont& fnt) { Workspace::instance().settings.fontFamily = fnt.family(); });
     addWidget(f);
-    addSpin("Taille :", &s.fontSize, 4, 1000, " px");
+    addSpin(tr("Taille :"), &s.fontSize, 4, 1000, " px");
     auto mk = [&](const QString& t, const QString& tip, bool* v, int weight, bool italic) {
         auto* b = new QToolButton; b->setText(t); b->setToolTip(tip); b->setCheckable(true); b->setChecked(*v);
         QFont bf = b->font(); bf.setBold(weight); bf.setItalic(italic); b->setFont(bf);
         connect(b, &QToolButton::toggled, this, [v](bool on) { *v = on; });
         addWidget(b);
     };
-    mk("G", "Gras", &s.bold, 1, false);
-    mk("I", "Italique", &s.italic, 0, true);
-    addCombo("", {"Gauche", "Centré", "Droite"}, &s.textAlign);
+    mk(tr("G", "initiale du bouton Gras"), tr("Gras"), &s.bold, 1, false);
+    mk(tr("I", "initiale du bouton Italique"), tr("Italique"), &s.italic, 0, true);
+    addCombo("", {tr("Gauche"), tr("Centré"), tr("Droite")}, &s.textAlign);
 }
 
 void OptionsBar::addButton(const QString& text, const std::function<void()>& fn) {

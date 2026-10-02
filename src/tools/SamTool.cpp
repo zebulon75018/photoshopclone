@@ -16,17 +16,17 @@ static Sel::Mode samMode(const ToolEvent& e) {
 void SamTool::activate() {
     m_stale = true;
     ws().message(AIBackend::available()
-                     ? "Sélection par IA : cliquez sur un objet, ou tracez un cadre autour. Maj = ajouter, Alt = soustraire. (1re utilisation : analyse de l'image, quelques secondes)"
-                     : "Sélection par IA indisponible : PhotoClone a été compilé sans vision.cpp.");
+                     ? tr("Sélection par IA : cliquez sur un objet, ou tracez un cadre autour. Maj = ajouter, Alt = soustraire. (1re utilisation : analyse de l'image, quelques secondes)")
+                     : tr("Sélection par IA indisponible : PhotoClone a été compilé sans vision.cpp."));
 }
 
 void SamTool::buildOptions(OptionsBar& o) {
     o.addSelectionModes(&st().selMode);
     o.addSeparator();
-    o.addSpin("Contour progressif :", &st().feather, 0, 250, " px");
-    o.addCheck("Analyser tous les calques", &st().samSampleAll);
-    o.addButton("Ré-analyser l'image", [this] { m_stale = true; ws().message("L'image sera ré-analysée au prochain clic."); });
-    o.addLabel("  Modèle MobileSAM : IA > Réglages des modèles…");
+    o.addSpin(tr("Contour progressif :"), &st().feather, 0, 250, " px");
+    o.addCheck(tr("Analyser tous les calques"), &st().samSampleAll);
+    o.addButton(tr("Ré-analyser l'image"), [this] { m_stale = true; ws().message(tr("L'image sera ré-analysée au prochain clic.")); });
+    o.addLabel(tr("  Modèle MobileSAM : IA > Réglages des modèles…"));
 }
 
 // Encode l'image courante si nécessaire (première fois, document/calque modifié, ou demande explicite).
@@ -42,7 +42,7 @@ bool SamTool::ensureEncoded(Document* d, CanvasView* v) {
     auto layer = d->activeLayer();
     if (!st().samSampleAll && !layer) return false;
     cv::Mat src = st().samSampleAll ? d->compositeCopy() : layer->image;
-    ws().message("Analyse de l'image par MobileSAM…");
+    ws().message(tr("Analyse de l'image par MobileSAM…"));
     QApplication::setOverrideCursor(Qt::WaitCursor);
     QApplication::processEvents();
     QString err;
@@ -79,11 +79,11 @@ void SamTool::release(const ToolEvent& e) {
         r = AIBackend::samComputePoint(QPoint(int(std::floor(e.pos.x())), int(std::floor(e.pos.y()))));
     }
     if (!r.ok) { ws().message(r.error); return; }
-    if (r.data.size() != cv::Size(e.doc->size().width(), e.doc->size().height())) { ws().message("MobileSAM : masque de taille inattendue."); return; }
+    if (r.data.size() != cv::Size(e.doc->size().width(), e.doc->size().height())) { ws().message(tr("MobileSAM : masque de taille inattendue.")); return; }
     cv::Mat mask = r.data;
     if (st().feather > 0) mask = Sel::feather(mask, st().feather);
-    if (cv::countNonZero(mask) == 0) { ws().message("MobileSAM : aucun objet détecté à cet endroit."); return; }
-    e.doc->setSelection(Sel::combine(e.doc->selection(), mask, samMode(e), e.doc->size()), "Sélection par IA");
+    if (cv::countNonZero(mask) == 0) { ws().message(tr("MobileSAM : aucun objet détecté à cet endroit.")); return; }
+    e.doc->setSelection(Sel::combine(e.doc->selection(), mask, samMode(e), e.doc->size()), tr("Sélection par IA"));
 }
 
 void SamTool::paintOverlay(QPainter& p, CanvasView* v) {

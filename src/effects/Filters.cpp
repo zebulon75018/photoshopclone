@@ -1,19 +1,22 @@
 #include "EffectUtil.h"
 #include <QStringList>
+#include <QCoreApplication>
+
+namespace { struct Tr { Q_DECLARE_TR_FUNCTIONS(Filters) }; }   // traductions hors classes QObject (voir translations/)
 
 using fx::spatial; using fx::onBGR; using fx::warp;
 
 void registerFilters(EffectRegistry& R) {
     // ---------------------------------------------------------------- Flou
-    R.add("filter.gaussian", "Flou gaussien…", "Atténuation", {P::Dbl("r", "Rayon (px)", 0.1, 250, 4, 1)},
+    R.add("filter.gaussian", Tr::tr("Flou gaussien…"), Tr::tr("Atténuation"), {P::Dbl("r", Tr::tr("Rayon (px)"), 0.1, 250, 4, 1)},
           [](const cv::Mat& s, const Params& p) {
               return spatial(s, [&](const cv::Mat& m) { cv::Mat o; cv::GaussianBlur(m, o, cv::Size(0, 0), p.d("r")); return o; });
           });
-    R.add("filter.box", "Flou moyen…", "Atténuation", {P::Int("r", "Rayon (px)", 1, 200, 5)},
+    R.add("filter.box", Tr::tr("Flou moyen…"), Tr::tr("Atténuation"), {P::Int("r", Tr::tr("Rayon (px)"), 1, 200, 5)},
           [](const cv::Mat& s, const Params& p) {
               return spatial(s, [&](const cv::Mat& m) { cv::Mat o; int k = 2 * p.i("r") + 1; cv::blur(m, o, cv::Size(k, k)); return o; });
           });
-    R.add("filter.motion", "Flou de mouvement…", "Atténuation", {P::Int("angle", "Angle (°)", -90, 90, 0), P::Int("dist", "Distance (px)", 1, 500, 20)},
+    R.add("filter.motion", Tr::tr("Flou de mouvement…"), Tr::tr("Atténuation"), {P::Int("angle", Tr::tr("Angle (°)"), -90, 90, 0), P::Int("dist", Tr::tr("Distance (px)"), 1, 500, 20)},
           [](const cv::Mat& s, const Params& p) {
               int L = p.i("dist"), ks = (L | 1) + 2;
               cv::Mat k = cv::Mat::zeros(ks, ks, CV_32F);
@@ -23,23 +26,23 @@ void registerFilters(EffectRegistry& R) {
               k /= std::max(1e-6, cv::sum(k)[0]);
               return spatial(s, [&](const cv::Mat& m) { cv::Mat o; cv::filter2D(m, o, -1, k, cv::Point(-1, -1), 0, cv::BORDER_REPLICATE); return o; });
           });
-    R.add("filter.surface", "Flou de surface…", "Atténuation", {P::Int("r", "Rayon (px)", 1, 25, 5), P::Int("t", "Seuil", 1, 255, 30)},
+    R.add("filter.surface", Tr::tr("Flou de surface…"), Tr::tr("Atténuation"), {P::Int("r", Tr::tr("Rayon (px)"), 1, 25, 5), P::Int("t", Tr::tr("Seuil"), 1, 255, 30)},
           [](const cv::Mat& s, const Params& p) {
               return onBGR(s, [&](const cv::Mat& m) { cv::Mat o; cv::bilateralFilter(m, o, std::min(2 * p.i("r") + 1, 25), p.i("t"), p.i("r")); return o; });
           });
-    R.add("filter.median", "Médiane…", "Bruit", {P::Int("r", "Rayon (px)", 1, 20, 2)},
+    R.add("filter.median", Tr::tr("Médiane…"), Tr::tr("Bruit"), {P::Int("r", Tr::tr("Rayon (px)"), 1, 20, 2)},
           [](const cv::Mat& s, const Params& p) {
               return spatial(s, [&](const cv::Mat& m) { cv::Mat o; cv::medianBlur(m, o, 2 * p.i("r") + 1); return o; });
           });
 
     // ---------------------------------------------------------------- Netteté
-    R.add("filter.sharpen", "Accentuation", "Netteté", {},
+    R.add("filter.sharpen", Tr::tr("Accentuation"), Tr::tr("Netteté"), {},
           [](const cv::Mat& s, const Params&) {
               cv::Mat k = (cv::Mat_<float>(3, 3) << 0, -1, 0, -1, 5, -1, 0, -1, 0);
               return onBGR(s, [&](const cv::Mat& m) { cv::Mat o; cv::filter2D(m, o, -1, k); return o; });
           });
-    R.add("filter.unsharp", "Masque flou…", "Netteté",
-          {P::Int("amount", "Gain (%)", 1, 500, 100), P::Dbl("r", "Rayon (px)", 0.1, 100, 1.5, 1), P::Int("t", "Seuil", 0, 255, 0)},
+    R.add("filter.unsharp", Tr::tr("Masque flou…"), Tr::tr("Netteté"),
+          {P::Int("amount", Tr::tr("Gain (%)"), 1, 500, 100), P::Dbl("r", Tr::tr("Rayon (px)"), 0.1, 100, 1.5, 1), P::Int("t", Tr::tr("Seuil"), 0, 255, 0)},
           [](const cv::Mat& s, const Params& p) {
               return onBGR(s, [&](const cv::Mat& m) {
                   cv::Mat f, b, d;
@@ -55,14 +58,14 @@ void registerFilters(EffectRegistry& R) {
                   return o8;
               });
           });
-    R.add("filter.detail", "Amélioration des détails…", "Netteté", {P::Dbl("s", "Étendue", 1, 200, 10, 0), P::Dbl("r", "Intensité", 0.01, 1, 0.15, 2)},
+    R.add("filter.detail", Tr::tr("Amélioration des détails…"), Tr::tr("Netteté"), {P::Dbl("s", Tr::tr("Étendue"), 1, 200, 10, 0), P::Dbl("r", Tr::tr("Intensité"), 0.01, 1, 0.15, 2)},
           [](const cv::Mat& s, const Params& p) {
               return onBGR(s, [&](const cv::Mat& m) { cv::Mat o; cv::detailEnhance(m, o, float(p.d("s")), float(p.d("r"))); return o; });
           });
 
     // ---------------------------------------------------------------- Bruit
-    R.add("filter.noise", "Ajout de bruit…", "Bruit",
-          {P::Dbl("amount", "Quantité (%)", 0.1, 100, 10, 1), P::Choice("dist", "Distribution", {"Uniforme", "Gaussienne"}, 1), P::Bool("mono", "Monochromatique", false)},
+    R.add("filter.noise", Tr::tr("Ajout de bruit…"), Tr::tr("Bruit"),
+          {P::Dbl("amount", Tr::tr("Quantité (%)"), 0.1, 100, 10, 1), P::Choice("dist", Tr::tr("Distribution"), {Tr::tr("Uniforme"), Tr::tr("Gaussienne")}, 1), P::Bool("mono", Tr::tr("Monochromatique"), false)},
           [](const cv::Mat& s, const Params& p) {
               return onBGR(s, [&](const cv::Mat& m) {
                   cv::RNG rng(4242);
@@ -74,15 +77,15 @@ void registerFilters(EffectRegistry& R) {
                   return o;
               });
           });
-    R.add("filter.denoise", "Réduction du bruit…", "Bruit", {P::Dbl("h", "Intensité", 1, 30, 8, 0)},
+    R.add("filter.denoise", Tr::tr("Réduction du bruit…"), Tr::tr("Bruit"), {P::Dbl("h", Tr::tr("Intensité"), 1, 30, 8, 0)},
           [](const cv::Mat& s, const Params& p) {
               return onBGR(s, [&](const cv::Mat& m) { cv::Mat o; cv::fastNlMeansDenoisingColored(m, o, float(p.d("h")), float(p.d("h")), 7, 21); return o; });
           });
-    R.add("filter.despeckle", "Antipoussière", "Bruit", {},
+    R.add("filter.despeckle", Tr::tr("Antipoussière"), Tr::tr("Bruit"), {},
           [](const cv::Mat& s, const Params&) { return spatial(s, [](const cv::Mat& m) { cv::Mat o; cv::medianBlur(m, o, 3); return o; }); });
 
     // ---------------------------------------------------------------- Stylisation
-    R.add("filter.emboss", "Relief…", "Stylisation", {P::Int("angle", "Angle (°)", -180, 180, 135), P::Dbl("h", "Hauteur", 0.5, 10, 2, 1)},
+    R.add("filter.emboss", Tr::tr("Relief…"), Tr::tr("Stylisation"), {P::Int("angle", Tr::tr("Angle (°)"), -180, 180, 135), P::Dbl("h", Tr::tr("Hauteur"), 0.5, 10, 2, 1)},
           [](const cv::Mat& s, const Params& p) {
               return onBGR(s, [&](const cv::Mat& m) {
                   double a = p.d("angle") * CV_PI / 180, dx = std::cos(a), dy = -std::sin(a);
@@ -95,7 +98,7 @@ void registerFilters(EffectRegistry& R) {
                   return o;
               });
           });
-    R.add("filter.edges", "Contour (Find Edges)", "Stylisation", {},
+    R.add("filter.edges", Tr::tr("Contour (Find Edges)"), Tr::tr("Stylisation"), {},
           [](const cv::Mat& s, const Params&) {
               return onBGR(s, [&](const cv::Mat& m) {
                   cv::Mat f, gx, gy, mag, o;
@@ -107,12 +110,12 @@ void registerFilters(EffectRegistry& R) {
                   return o;
               });
           });
-    R.add("filter.solarize", "Solarisation", "Stylisation", {},
+    R.add("filter.solarize", Tr::tr("Solarisation"), Tr::tr("Stylisation"), {},
           [](const cv::Mat& s, const Params&) {
               std::array<uchar, 256> l; for (int i = 0; i < 256; ++i) l[i] = uchar(i < 128 ? i : 255 - i);
               return fx::applyLut(s, l);
           });
-    R.add("filter.cartoon", "Dessin animé…", "Stylisation", {P::Int("blocks", "Épaisseur des traits", 3, 25, 9)},
+    R.add("filter.cartoon", Tr::tr("Dessin animé…"), Tr::tr("Stylisation"), {P::Int("blocks", Tr::tr("Épaisseur des traits"), 3, 25, 9)},
           [](const cv::Mat& s, const Params& p) {
               return onBGR(s, [&](const cv::Mat& m) {
                   cv::Mat gray, edges, col = m.clone(), out;
@@ -125,7 +128,7 @@ void registerFilters(EffectRegistry& R) {
                   return out;
               });
           });
-    R.add("filter.pencil", "Croquis au crayon…", "Stylisation", {P::Dbl("s", "Étendue", 1, 200, 60, 0), P::Dbl("shade", "Ombrage", 0.01, 0.1, 0.03, 2), P::Bool("color", "Couleur", false)},
+    R.add("filter.pencil", Tr::tr("Croquis au crayon…"), Tr::tr("Stylisation"), {P::Dbl("s", Tr::tr("Étendue"), 1, 200, 60, 0), P::Dbl("shade", Tr::tr("Ombrage"), 0.01, 0.1, 0.03, 2), P::Bool("color", Tr::tr("Couleur"), false)},
           [](const cv::Mat& s, const Params& p) {
               return onBGR(s, [&](const cv::Mat& m) {
                   cv::Mat g, c;
@@ -135,13 +138,13 @@ void registerFilters(EffectRegistry& R) {
                   return g;
               });
           });
-    R.add("filter.watercolor", "Aquarelle…", "Stylisation", {P::Dbl("s", "Étendue", 1, 200, 60, 0), P::Dbl("r", "Contraste", 0.05, 1, 0.45, 2)},
+    R.add("filter.watercolor", Tr::tr("Aquarelle…"), Tr::tr("Stylisation"), {P::Dbl("s", Tr::tr("Étendue"), 1, 200, 60, 0), P::Dbl("r", Tr::tr("Contraste"), 0.05, 1, 0.45, 2)},
           [](const cv::Mat& s, const Params& p) {
               return onBGR(s, [&](const cv::Mat& m) { cv::Mat o; cv::stylization(m, o, float(p.d("s")), float(p.d("r"))); return o; });
           });
 
     // ---------------------------------------------------------------- Pixellisation
-    R.add("filter.mosaic", "Mosaïque…", "Pixellisation", {P::Int("cell", "Taille de cellule", 2, 200, 12)},
+    R.add("filter.mosaic", Tr::tr("Mosaïque…"), Tr::tr("Pixellisation"), {P::Int("cell", Tr::tr("Taille de cellule"), 2, 200, 12)},
           [](const cv::Mat& s, const Params& p) {
               return spatial(s, [&](const cv::Mat& m) {
                   cv::Mat small, o;
@@ -153,7 +156,7 @@ void registerFilters(EffectRegistry& R) {
           });
 
     // ---------------------------------------------------------------- Déformation
-    R.add("filter.twirl", "Torsion…", "Déformation", {P::Int("angle", "Angle (°)", -720, 720, 120), P::Int("radius", "Rayon (% du plus petit côté)", 5, 100, 100)},
+    R.add("filter.twirl", Tr::tr("Torsion…"), Tr::tr("Déformation"), {P::Int("angle", Tr::tr("Angle (°)"), -720, 720, 120), P::Int("radius", Tr::tr("Rayon (% du plus petit côté)"), 5, 100, 100)},
           [](const cv::Mat& s, const Params& p) {
               double cx = s.cols / 2.0, cy = s.rows / 2.0, R0 = std::min(s.cols, s.rows) / 2.0 * p.i("radius") / 100.0, ang = p.d("angle") * CV_PI / 180;
               return warp(s, [&](int x, int y, float& sx, float& sy) {
@@ -163,14 +166,14 @@ void registerFilters(EffectRegistry& R) {
                   sx = float(cx + dx * c - dy * sn); sy = float(cy + dx * sn + dy * c);
               });
           });
-    R.add("filter.wave", "Ondulation…", "Déformation", {P::Int("amp", "Amplitude (px)", 1, 200, 10), P::Int("len", "Longueur d'onde (px)", 5, 500, 60)},
+    R.add("filter.wave", Tr::tr("Ondulation…"), Tr::tr("Déformation"), {P::Int("amp", Tr::tr("Amplitude (px)"), 1, 200, 10), P::Int("len", Tr::tr("Longueur d'onde (px)"), 5, 500, 60)},
           [](const cv::Mat& s, const Params& p) {
               double A = p.d("amp"), L = p.d("len");
               return warp(s, [&](int x, int y, float& sx, float& sy) {
                   sx = float(x + A * std::sin(2 * CV_PI * y / L)); sy = float(y + A * std::sin(2 * CV_PI * x / L));
               });
           });
-    R.add("filter.spherize", "Sphérisation…", "Déformation", {P::Int("amount", "Quantité (%)", -100, 100, 60)},
+    R.add("filter.spherize", Tr::tr("Sphérisation…"), Tr::tr("Déformation"), {P::Int("amount", Tr::tr("Quantité (%)"), -100, 100, 60)},
           [](const cv::Mat& s, const Params& p) {
               double cx = s.cols / 2.0, cy = s.rows / 2.0, R0 = std::min(s.cols, s.rows) / 2.0, a = p.d("amount") / 100.0;
               double ex = a >= 0 ? 1 + a : 1.0 / (1 - a);
@@ -181,7 +184,7 @@ void registerFilters(EffectRegistry& R) {
                   sx = float(cx + dx * k); sy = float(cy + dy * k);
               });
           });
-    R.add("filter.vignette", "Vignettage…", "Déformation", {P::Int("amount", "Quantité", -100, 100, 50), P::Int("mid", "Point médian", 0, 99, 40)},
+    R.add("filter.vignette", Tr::tr("Vignettage…"), Tr::tr("Déformation"), {P::Int("amount", Tr::tr("Quantité"), -100, 100, 50), P::Int("mid", Tr::tr("Point médian"), 0, 99, 40)},
           [](const cv::Mat& s, const Params& p) {
               double amt = p.d("amount") / 100.0, mid = p.d("mid") / 100.0, cx = s.cols / 2.0, cy = s.rows / 2.0, md = std::sqrt(cx * cx + cy * cy);
               cv::Mat out = s.clone();
@@ -199,7 +202,7 @@ void registerFilters(EffectRegistry& R) {
           });
 
     // ---------------------------------------------------------------- Divers
-    R.add("filter.highpass", "Passe-haut…", "Autre", {P::Dbl("r", "Rayon (px)", 0.1, 250, 5, 1)},
+    R.add("filter.highpass", Tr::tr("Passe-haut…"), Tr::tr("Autre"), {P::Dbl("r", Tr::tr("Rayon (px)"), 0.1, 250, 5, 1)},
           [](const cv::Mat& s, const Params& p) {
               return onBGR(s, [&](const cv::Mat& m) {
                   cv::Mat f, b, o; m.convertTo(f, CV_32F);
@@ -208,14 +211,14 @@ void registerFilters(EffectRegistry& R) {
                   return o;
               });
           });
-    R.add("filter.maximum", "Maximum (dilatation)…", "Autre", {P::Int("r", "Rayon (px)", 1, 50, 2)},
+    R.add("filter.maximum", Tr::tr("Maximum (dilatation)…"), Tr::tr("Autre"), {P::Int("r", Tr::tr("Rayon (px)"), 1, 50, 2)},
           [](const cv::Mat& s, const Params& p) { cv::Mat o; cv::dilate(s, o, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(2 * p.i("r") + 1, 2 * p.i("r") + 1))); return o; });
-    R.add("filter.minimum", "Minimum (érosion)…", "Autre", {P::Int("r", "Rayon (px)", 1, 50, 2)},
+    R.add("filter.minimum", Tr::tr("Minimum (érosion)…"), Tr::tr("Autre"), {P::Int("r", Tr::tr("Rayon (px)"), 1, 50, 2)},
           [](const cv::Mat& s, const Params& p) { cv::Mat o; cv::erode(s, o, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(2 * p.i("r") + 1, 2 * p.i("r") + 1))); return o; });
 
     // ---------------------------------------------------------------- Rendu
-    R.add("filter.clouds", "Nuages…", "Rendu",
-          {P::Color("fg", "Couleur 1", Qt::black), P::Color("bg", "Couleur 2", Qt::white), P::Int("scale", "Échelle (px)", 8, 1000, 200), P::Int("seed", "Graine", 0, 9999, 1)},
+    R.add("filter.clouds", Tr::tr("Nuages…"), Tr::tr("Rendu"),
+          {P::Color("fg", Tr::tr("Couleur 1"), Qt::black), P::Color("bg", Tr::tr("Couleur 2"), Qt::white), P::Int("scale", Tr::tr("Échelle (px)"), 8, 1000, 200), P::Int("seed", Tr::tr("Graine"), 0, 9999, 1)},
           [](const cv::Mat& s, const Params& p) {
               cv::RNG rng(uint64(p.i("seed")) + 1);
               cv::Mat acc = cv::Mat::zeros(s.size(), CV_32F);

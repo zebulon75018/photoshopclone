@@ -9,6 +9,9 @@
 #include <QCryptographicHash>
 #include <algorithm>
 #include <cstring>
+#include <QCoreApplication>
+
+namespace { struct Tr { Q_DECLARE_TR_FUNCTIONS(SdModelDiagnostics) }; }   // traductions hors classes QObject (voir translations/)
 
 namespace Sd {
 namespace {
@@ -16,30 +19,30 @@ namespace {
 // ============================================================================================ heuristique d'architecture (commune)
 QString archGuessFromMarkers(bool unet, bool vae, bool clip, bool sdxlCond, bool flux, bool sd3, bool t5) {
     QStringList found;
-    if (unet) found << "UNet (style SD 1.x/2.x/SDXL)";
-    if (flux) found << "blocs de diffusion de type Flux";
-    if (sd3) found << "blocs de diffusion de type SD3";
+    if (unet) found << Tr::tr("UNet (style SD 1.x/2.x/SDXL)");
+    if (flux) found << Tr::tr("blocs de diffusion de type Flux");
+    if (sd3) found << Tr::tr("blocs de diffusion de type SD3");
     if (vae) found << "VAE";
-    if (clip) found << "encodeur de texte CLIP";
-    if (sdxlCond) found << "second encodeur de texte (style SDXL)";
-    if (t5) found << "encodeur de texte T5";
+    if (clip) found << Tr::tr("encodeur de texte CLIP");
+    if (sdxlCond) found << Tr::tr("second encodeur de texte (style SDXL)");
+    if (t5) found << Tr::tr("encodeur de texte T5");
     if (found.isEmpty()) return {};
 
-    QString v = "Éléments détectés : " + found.join(", ") + ". ";
+    QString v = Tr::tr("Éléments détectés : %1. ").arg(found.join(", "));
     const bool hasDiffusion = unet || flux || sd3;
     const bool hasAnyText = clip || sdxlCond || t5;
     if (hasDiffusion && vae && hasAnyText)
-        v += "Cela ressemble à un checkpoint complet autonome : remplir uniquement « Checkpoint complet » devrait suffire.";
+        v += Tr::tr("Cela ressemble à un checkpoint complet autonome : remplir uniquement « Checkpoint complet » devrait suffire.");
     else if (hasDiffusion && !hasAnyText)
-        v += "Cela ressemble à un modèle de diffusion SEUL, sans encodeur de texte intégré : utilisez l'onglet « Modèle de diffusion + encodeurs », "
-             "avec l'encodeur (ou les encodeurs) de texte correspondant renseigné séparément.";
+        v += Tr::tr("Cela ressemble à un modèle de diffusion SEUL, sans encodeur de texte intégré : utilisez l'onglet « Modèle de diffusion + encodeurs », "
+             "avec l'encodeur (ou les encodeurs) de texte correspondant renseigné séparément.");
     else if (hasAnyText && !hasDiffusion && !vae)
-        v += "Cela ressemble à un encodeur de texte seul (CLIP/T5) : à renseigner dans l'onglet « Modèle de diffusion + encodeurs », "
-             "pas comme checkpoint complet.";
+        v += Tr::tr("Cela ressemble à un encodeur de texte seul (CLIP/T5) : à renseigner dans l'onglet « Modèle de diffusion + encodeurs », "
+             "pas comme checkpoint complet.");
     else if (vae && !hasDiffusion && !hasAnyText)
-        v += "Cela ressemble à un VAE seul : à renseigner dans le champ « VAE », pas comme checkpoint complet.";
+        v += Tr::tr("Cela ressemble à un VAE seul : à renseigner dans le champ « VAE », pas comme checkpoint complet.");
     else
-        v += "Combinaison partielle : vérifiez qu'il ne manque pas une pièce (VAE ou encodeur de texte) pour ce fichier précis.";
+        v += Tr::tr("Combinaison partielle : vérifiez qu'il ne manque pas une pièce (VAE ou encodeur de texte) pour ce fichier précis.");
     return v;
 }
 
@@ -95,7 +98,7 @@ bool ggufReadValue(QFile& f, quint32 type, QString* asText, int depth = 0) {
             switch (type) {
             case G_U8: *asText = QString::number(quint8(b[0])); break;
             case G_I8: *asText = QString::number(qint8(b[0])); break;
-            case G_BOOL: *asText = (b[0] != 0) ? "vrai" : "faux"; break;
+            case G_BOOL: *asText = (b[0] != 0) ? Tr::tr("vrai") : Tr::tr("faux"); break;
             case G_U16: { quint16 v; memcpy(&v, b.constData(), 2); *asText = QString::number(v); break; }
             case G_I16: { qint16 v; memcpy(&v, b.constData(), 2); *asText = QString::number(v); break; }
             case G_U32: { quint32 v; memcpy(&v, b.constData(), 4); *asText = QString::number(v); break; }
@@ -124,7 +127,7 @@ bool ggufReadValue(QFile& f, quint32 type, QString* asText, int depth = 0) {
         if (count > 5'000'000ull) return false;          // garde-fou
         for (quint64 i = 0; i < count; ++i)
             if (!ggufReadValue(f, subtype, nullptr, depth + 1)) return false;
-        if (asText) *asText = QString("[tableau de %1 élément(s)]").arg(count);
+        if (asText) *asText = Tr::tr("[tableau de %1 élément(s)]").arg(count);
         return true;
     }
     return false;                                        // type inconnu : impossible de savoir de combien avancer
@@ -135,50 +138,50 @@ void readGguf(QFile& f, ModelDiagnostic& d) {
     f.seek(4);                                            // signature déjà vérifiée par l'appelant
     quint32 version = 0;
     quint64 nTensors = 0, nKv = 0;
-    if (f.read(reinterpret_cast<char*>(&version), 4) != 4) { d.issues << "en-tête GGUF tronqué (version)."; return; }
-    if (f.read(reinterpret_cast<char*>(&nTensors), 8) != 8) { d.issues << "en-tête GGUF tronqué (nombre de tenseurs)."; return; }
-    if (f.read(reinterpret_cast<char*>(&nKv), 8) != 8) { d.issues << "en-tête GGUF tronqué (nombre de métadonnées)."; return; }
+    if (f.read(reinterpret_cast<char*>(&version), 4) != 4) { d.issues << Tr::tr("en-tête GGUF tronqué (version)."); return; }
+    if (f.read(reinterpret_cast<char*>(&nTensors), 8) != 8) { d.issues << Tr::tr("en-tête GGUF tronqué (nombre de tenseurs)."); return; }
+    if (f.read(reinterpret_cast<char*>(&nKv), 8) != 8) { d.issues << Tr::tr("en-tête GGUF tronqué (nombre de métadonnées)."); return; }
     if (nTensors > 1'000'000ull || nKv > 1'000'000ull) {
-        d.issues << "en-tête GGUF invraisemblable (nombre de tenseurs ou de métadonnées aberrant) : fichier probablement corrompu.";
+        d.issues << Tr::tr("en-tête GGUF invraisemblable (nombre de tenseurs ou de métadonnées aberrant) : fichier probablement corrompu.");
         return;
     }
-    d.metadata << QString("Version du format GGUF : %1").arg(version);
+    d.metadata << Tr::tr("Version du format GGUF : %1").arg(version);
 
     for (quint64 i = 0; i < nKv; ++i) {
         QString key;
-        if (!ggufReadString(f, &key)) { d.issues << QString("métadonnées GGUF tronquées (entrée %1 sur %2).").arg(i + 1).arg(nKv); return; }
+        if (!ggufReadString(f, &key)) { d.issues << Tr::tr("métadonnées GGUF tronquées (entrée %1 sur %2).").arg(i + 1).arg(nKv); return; }
         quint32 type = 0;
-        if (f.read(reinterpret_cast<char*>(&type), 4) != 4) { d.issues << "métadonnées GGUF tronquées (type de valeur)."; return; }
+        if (f.read(reinterpret_cast<char*>(&type), 4) != 4) { d.issues << Tr::tr("métadonnées GGUF tronquées (type de valeur)."); return; }
         QString val;
-        if (!ggufReadValue(f, type, &val)) { d.issues << QString("métadonnées GGUF tronquées (valeur de « %1 »).").arg(key); return; }
+        if (!ggufReadValue(f, type, &val)) { d.issues << Tr::tr("métadonnées GGUF tronquées (valeur de « %1 »).").arg(key); return; }
         if (d.metadata.size() < 40) d.metadata << QString("%1 : %2").arg(key, val);
     }
 
     QStringList names;
     for (quint64 i = 0; i < nTensors; ++i) {
         QString name;
-        if (!ggufReadString(f, &name)) { d.issues << QString("liste des tenseurs GGUF tronquée (entrée %1 sur %2).").arg(i + 1).arg(nTensors); return; }
+        if (!ggufReadString(f, &name)) { d.issues << Tr::tr("liste des tenseurs GGUF tronquée (entrée %1 sur %2).").arg(i + 1).arg(nTensors); return; }
         quint32 nDims = 0;
-        if (f.read(reinterpret_cast<char*>(&nDims), 4) != 4 || nDims > 8) { d.issues << QString("dimensions invalides pour le tenseur « %1 ».").arg(name); return; }
+        if (f.read(reinterpret_cast<char*>(&nDims), 4) != 4 || nDims > 8) { d.issues << Tr::tr("dimensions invalides pour le tenseur « %1 ».").arg(name); return; }
         for (quint32 k = 0; k < nDims; ++k) {
             quint64 dim = 0;
-            if (f.read(reinterpret_cast<char*>(&dim), 8) != 8) { d.issues << "liste des tenseurs GGUF tronquée (dimensions)."; return; }
+            if (f.read(reinterpret_cast<char*>(&dim), 8) != 8) { d.issues << Tr::tr("liste des tenseurs GGUF tronquée (dimensions)."); return; }
         }
         quint32 ggmlType = 0;
         quint64 offset = 0;
         if (f.read(reinterpret_cast<char*>(&ggmlType), 4) != 4 || f.read(reinterpret_cast<char*>(&offset), 8) != 8) {
-            d.issues << "liste des tenseurs GGUF tronquée (type/décalage)."; return;
+            d.issues << Tr::tr("liste des tenseurs GGUF tronquée (type/décalage)."); return;
         }
         names << name;
     }
     d.tensorCount = qint64(nTensors);
-    if (names.size() > 30) { d.sampleNames = names.mid(0, 30); d.sampleNames << QString("… et %1 de plus").arg(names.size() - 30); }
+    if (names.size() > 30) { d.sampleNames = names.mid(0, 30); d.sampleNames << Tr::tr("… et %1 de plus").arg(names.size() - 30); }
     else d.sampleNames = names;
 
     const qint64 dataStart = f.pos();
-    if (dataStart > d.sizeBytes) { d.issues << "le fichier s'arrête avant la fin de la liste des tenseurs : tronqué."; return; }
+    if (dataStart > d.sizeBytes) { d.issues << Tr::tr("le fichier s'arrête avant la fin de la liste des tenseurs : tronqué."); return; }
     if (nTensors > 0 && (d.sizeBytes - dataStart) < qint64(nTensors) * 64)
-        d.issues << "les données des tenseurs semblent beaucoup plus petites que ce que la liste laisse attendre : fichier probablement tronqué.";
+        d.issues << Tr::tr("les données des tenseurs semblent beaucoup plus petites que ce que la liste laisse attendre : fichier probablement tronqué.");
     d.structurallyValid = true;
     d.archGuess = archGuessFromNames(names);
 }
@@ -188,16 +191,16 @@ void readSafetensors(QFile& f, ModelDiagnostic& d) {
     d.format = "Safetensors";
     f.seek(0);
     quint64 headerLen = 0;
-    if (f.read(reinterpret_cast<char*>(&headerLen), 8) != 8) { d.issues << "en-tête safetensors tronqué."; return; }
-    if (headerLen == 0 || headerLen > (256ull << 20)) { d.issues << "taille d'en-tête safetensors invraisemblable : fichier probablement corrompu."; return; }
-    if (8 + qint64(headerLen) > d.sizeBytes) { d.issues << "l'en-tête déclaré est plus grand que le fichier lui-même : fichier tronqué."; return; }
+    if (f.read(reinterpret_cast<char*>(&headerLen), 8) != 8) { d.issues << Tr::tr("en-tête safetensors tronqué."); return; }
+    if (headerLen == 0 || headerLen > (256ull << 20)) { d.issues << Tr::tr("taille d'en-tête safetensors invraisemblable : fichier probablement corrompu."); return; }
+    if (8 + qint64(headerLen) > d.sizeBytes) { d.issues << Tr::tr("l'en-tête déclaré est plus grand que le fichier lui-même : fichier tronqué."); return; }
     const QByteArray headerBytes = f.read(qint64(headerLen));
-    if (quint64(headerBytes.size()) != headerLen) { d.issues << "lecture de l'en-tête safetensors interrompue (fichier tronqué)."; return; }
+    if (quint64(headerBytes.size()) != headerLen) { d.issues << Tr::tr("lecture de l'en-tête safetensors interrompue (fichier tronqué)."); return; }
 
     QJsonParseError perr;
     const QJsonDocument doc = QJsonDocument::fromJson(headerBytes, &perr);
     if (perr.error != QJsonParseError::NoError || !doc.isObject()) {
-        d.issues << QString("en-tête safetensors : JSON invalide (%1) — fichier corrompu.").arg(perr.errorString());
+        d.issues << Tr::tr("en-tête safetensors : JSON invalide (%1) — fichier corrompu.").arg(perr.errorString());
         return;
     }
     const QJsonObject obj = doc.object();
@@ -220,12 +223,12 @@ void readSafetensors(QFile& f, ModelDiagnostic& d) {
     }
     names.sort();
     d.tensorCount = names.size();
-    if (names.size() > 30) { d.sampleNames = names.mid(0, 30); d.sampleNames << QString("… et %1 de plus").arg(names.size() - 30); }
+    if (names.size() > 30) { d.sampleNames = names.mid(0, 30); d.sampleNames << Tr::tr("… et %1 de plus").arg(names.size() - 30); }
     else d.sampleNames = names;
 
     const qint64 expected = 8 + qint64(headerLen) + maxEnd;
     if (expected > d.sizeBytes)
-        d.issues << QString("taille du fichier incohérente avec les décalages déclarés dans l'en-tête (attendu au moins %1, fichier de %2) : probablement tronqué.")
+        d.issues << Tr::tr("taille du fichier incohérente avec les décalages déclarés dans l'en-tête (attendu au moins %1, fichier de %2) : probablement tronqué.")
                          .arg(mu::humanSize(expected), mu::humanSize(d.sizeBytes));
     d.structurallyValid = true;
     d.archGuess = archGuessFromNames(names);
@@ -242,15 +245,15 @@ bool zipReadCentralDirectory(QFile& f, std::vector<ZipEntry>* entries, QString* 
     const qint64 tailLen = std::min<qint64>(fsize, 22 + 65536);   // EOCD (22 o) + commentaire max (64 Kio)
     f.seek(fsize - tailLen);
     const QByteArray tail = f.read(tailLen);
-    if (tail.size() != tailLen) { *err = "lecture de la fin du fichier impossible."; return false; }
+    if (tail.size() != tailLen) { *err = Tr::tr("lecture de la fin du fichier impossible."); return false; }
 
     int eocdPos = -1;
     for (int i = int(tail.size()) - 22; i >= 0; --i) {
         if (memcmp(tail.constData() + i, "\x50\x4b\x05\x06", 4) == 0) { eocdPos = i; break; }
     }
     if (eocdPos < 0) {
-        *err = "aucune fin d'archive zip (« End Of Central Directory ») trouvée dans les derniers kilo-octets du fichier : "
-               "le fichier est presque certainement tronqué (téléchargement interrompu).";
+        *err = Tr::tr("aucune fin d'archive zip (« End Of Central Directory ») trouvée dans les derniers kilo-octets du fichier : "
+               "le fichier est presque certainement tronqué (téléchargement interrompu).");
         return false;
     }
     auto u16 = [&](int off) { quint16 v; memcpy(&v, tail.constData() + off, 2); return v; };
@@ -265,7 +268,7 @@ bool zipReadCentralDirectory(QFile& f, std::vector<ZipEntry>* entries, QString* 
     if (needsZip64) {
         const int locPos = eocdPos - 20;
         if (locPos < 0 || memcmp(tail.constData() + locPos, "\x50\x4b\x06\x07", 4) != 0) {
-            *err = "archive Zip64 attendue (fichier de plus de 4 Go) mais le localisateur Zip64 est absent ou corrompu.";
+            *err = Tr::tr("archive Zip64 attendue (fichier de plus de 4 Go) mais le localisateur Zip64 est absent ou corrompu.");
             return false;
         }
         quint64 z64EocdOffset;
@@ -273,7 +276,7 @@ bool zipReadCentralDirectory(QFile& f, std::vector<ZipEntry>* entries, QString* 
         f.seek(qint64(z64EocdOffset));
         const QByteArray rec = f.read(56);
         if (rec.size() != 56 || memcmp(rec.constData(), "\x50\x4b\x06\x06", 4) != 0) {
-            *err = "enregistrement Zip64 de fin de table centrale illisible ou corrompu.";
+            *err = Tr::tr("enregistrement Zip64 de fin de table centrale illisible ou corrompu.");
             return false;
         }
         memcpy(&entryCount, rec.constData() + 32, 8);
@@ -281,20 +284,20 @@ bool zipReadCentralDirectory(QFile& f, std::vector<ZipEntry>* entries, QString* 
         memcpy(&cdOffset, rec.constData() + 48, 8);
     }
     if (cdOffset > quint64(fsize) || cdSize > quint64(fsize) - cdOffset) {   // écrit sans addition : cdOffset + cdSize peut déborder (Zip64 forgé)
-        *err = "la table centrale déclarée dépasse la taille du fichier : archive tronquée ou corrompue.";
+        *err = Tr::tr("la table centrale déclarée dépasse la taille du fichier : archive tronquée ou corrompue.");
         return false;
     }
-    if (entryCount > 2'000'000ull) { *err = "nombre d'entrées invraisemblable : archive corrompue."; return false; }
-    if (cdSize > (256ull << 20)) { *err = "table centrale invraisemblablement grande : archive corrompue."; return false; }   // garde-fou mémoire : quelques centaines de Kio en pratique
+    if (entryCount > 2'000'000ull) { *err = Tr::tr("nombre d'entrées invraisemblable : archive corrompue."); return false; }
+    if (cdSize > (256ull << 20)) { *err = Tr::tr("table centrale invraisemblablement grande : archive corrompue."); return false; }   // garde-fou mémoire : quelques centaines de Kio en pratique
 
     f.seek(qint64(cdOffset));
     const QByteArray cd = f.read(qint64(cdSize));
-    if (quint64(cd.size()) != cdSize) { *err = "lecture de la table centrale interrompue (fichier tronqué)."; return false; }
+    if (quint64(cd.size()) != cdSize) { *err = Tr::tr("lecture de la table centrale interrompue (fichier tronqué)."); return false; }
 
     qint64 p = 0;
     for (quint64 i = 0; i < entryCount; ++i) {
         if (p + 46 > cd.size() || memcmp(cd.constData() + p, "\x50\x4b\x01\x02", 4) != 0) {
-            *err = QString("table centrale corrompue à l'entrée %1 sur %2.").arg(i + 1).arg(entryCount);
+            *err = Tr::tr("table centrale corrompue à l'entrée %1 sur %2.").arg(i + 1).arg(entryCount);
             return false;
         }
         auto cu16 = [&](int off) { quint16 v; memcpy(&v, cd.constData() + p + off, 2); return v; };
@@ -302,7 +305,7 @@ bool zipReadCentralDirectory(QFile& f, std::vector<ZipEntry>* entries, QString* 
         const quint16 method = cu16(10);
         quint64 compSize = cu32(20), uncompSize = cu32(24), localOffset = cu32(42);
         const quint16 nameLen = cu16(28), extraLen = cu16(30), commentLen = cu16(32);
-        if (p + 46 + nameLen + extraLen + commentLen > cd.size()) { *err = "table centrale corrompue (entrée tronquée)."; return false; }
+        if (p + 46 + nameLen + extraLen + commentLen > cd.size()) { *err = Tr::tr("table centrale corrompue (entrée tronquée)."); return false; }
         const QString name = QString::fromUtf8(cd.constData() + p + 46, nameLen);
 
         if (compSize == 0xFFFFFFFFu || uncompSize == 0xFFFFFFFFu || localOffset == 0xFFFFFFFFu) {
@@ -342,11 +345,11 @@ QByteArray zipReadStoredEntry(QFile& f, const ZipEntry& e, qint64 cap) {
 }
 
 void readTorchZip(QFile& f, ModelDiagnostic& d) {
-    d.format = "Archive zip PyTorch (.ckpt/.pt)";
+    d.format = Tr::tr("Archive zip PyTorch (.ckpt/.pt)");
     std::vector<ZipEntry> entries;
     QString err;
     if (!zipReadCentralDirectory(f, &entries, &err)) { d.issues << err; return; }
-    if (entries.empty()) { d.issues << "l'archive ne contient aucune entrée."; return; }
+    if (entries.empty()) { d.issues << Tr::tr("l'archive ne contient aucune entrée."); return; }
 
     QStringList names;
     quint64 totalUncomp = 0;
@@ -360,21 +363,21 @@ void readTorchZip(QFile& f, ModelDiagnostic& d) {
         if (e.name.endsWith("/version") || e.name == "version") hasVersion = true;
     }
     d.tensorCount = qint64(entries.size());               // nb d'entrées zip (≈ nb de tenseurs + quelques fichiers annexes)
-    if (names.size() > 20) { d.sampleNames = names.mid(0, 20); d.sampleNames << QString("… et %1 de plus").arg(names.size() - 20); }
+    if (names.size() > 20) { d.sampleNames = names.mid(0, 20); d.sampleNames << Tr::tr("… et %1 de plus").arg(names.size() - 20); }
     else d.sampleNames = names;
-    d.metadata << QString("%1 entrée(s) dans l'archive, %2 au total (non compressé).").arg(entries.size()).arg(mu::humanSize(qint64(totalUncomp)));
-    if (!hasDataPkl) d.issues << "aucune entrée « data.pkl » trouvée : ceci ne ressemble pas à une archive PyTorch standard (torch.save).";
-    if (!hasVersion) d.metadata << "(pas d'entrée « version » — format zip PyTorch ancien ou non standard, cela reste possible)";
+    d.metadata << Tr::tr("%1 entrée(s) dans l'archive, %2 au total (non compressé).").arg(entries.size()).arg(mu::humanSize(qint64(totalUncomp)));
+    if (!hasDataPkl) d.issues << Tr::tr("aucune entrée « data.pkl » trouvée : ceci ne ressemble pas à une archive PyTorch standard (torch.save).");
+    if (!hasVersion) d.metadata << Tr::tr("(pas d'entrée « version » — format zip PyTorch ancien ou non standard, cela reste possible)");
     d.structurallyValid = hasDataPkl;
 
     if (dataPklIndex >= 0) {
         const ZipEntry& pkl = entries[size_t(dataPklIndex)];
         if (pkl.method != 0) {
-            d.metadata << "le contenu de data.pkl est compressé : estimation de l'architecture impossible (seule la structure de l'archive a été vérifiée).";
+            d.metadata << Tr::tr("le contenu de data.pkl est compressé : estimation de l'architecture impossible (seule la structure de l'archive a été vérifiée).");
         } else {
             const QByteArray content = zipReadStoredEntry(f, pkl, 64ll << 20);   // 64 Mio : très large pour un simple state_dict pickle
             if (content.isEmpty()) {
-                d.issues << "impossible de relire le contenu de data.pkl (décalage local incohérent) : archive corrompue.";
+                d.issues << Tr::tr("impossible de relire le contenu de data.pkl (décalage local incohérent) : archive corrompue.");
             } else {
                 d.archGuess = archGuessFromRawBytes(content);
             }
@@ -389,13 +392,13 @@ ModelDiagnostic diagnoseModelFile(const QString& path, bool computeSha256) {
     ModelDiagnostic d;
     const QFileInfo fi(path);
     d.exists = fi.exists() && fi.isFile();
-    if (!d.exists) { d.format = "Inconnu"; d.issues << "fichier introuvable."; return d; }
+    if (!d.exists) { d.format = Tr::tr("Inconnu"); d.issues << Tr::tr("fichier introuvable."); return d; }
     d.sizeBytes = fi.size();
 
     QFile f(path);
     d.readable = f.open(QIODevice::ReadOnly);
-    if (!d.readable) { d.format = "Inconnu"; d.issues << "fichier illisible (droits d'accès ?)."; return d; }
-    if (d.sizeBytes < 8) { d.format = "Inconnu"; d.issues << "fichier vide ou trop petit pour être un modèle."; return d; }
+    if (!d.readable) { d.format = Tr::tr("Inconnu"); d.issues << Tr::tr("fichier illisible (droits d'accès ?)."); return d; }
+    if (d.sizeBytes < 8) { d.format = Tr::tr("Inconnu"); d.issues << Tr::tr("fichier vide ou trop petit pour être un modèle."); return d; }
 
     QByteArray head = f.read(16);
     if (head.startsWith("GGUF")) {
@@ -403,9 +406,9 @@ ModelDiagnostic diagnoseModelFile(const QString& path, bool computeSha256) {
     } else if (head.startsWith("PK\x03\x04")) {
         readTorchZip(f, d);
     } else if (static_cast<uchar>(head[0]) == 0x80) {
-        d.format = "Pickle brut (ancien .ckpt)";
-        d.metadata << "Ancien format de sérialisation PyTorch (pré-zip). Structure interne non analysée en détail ici ; "
-                       "la bibliothèque saura le charger si le fichier n'est pas tronqué.";
+        d.format = Tr::tr("Pickle brut (ancien .ckpt)");
+        d.metadata << Tr::tr("Ancien format de sérialisation PyTorch (pré-zip). Structure interne non analysée en détail ici ; "
+                       "la bibliothèque saura le charger si le fichier n'est pas tronqué.");
         d.structurallyValid = true;   // on ne peut pas en dire beaucoup plus sans un dépaqueteur pickle complet
     } else {
         quint64 n = 0;
@@ -413,7 +416,7 @@ ModelDiagnostic diagnoseModelFile(const QString& path, bool computeSha256) {
         f.seek(8);
         const bool looksLikeSafetensors = n > 0 && n < (256ull << 20) && 8 + qint64(n) <= d.sizeBytes && f.read(1) == "{";
         if (looksLikeSafetensors) readSafetensors(f, d);
-        else { d.format = "Inconnu"; d.issues << "signature de fichier non reconnue (ni GGUF, ni safetensors, ni archive zip PyTorch, ni pickle)."; }
+        else { d.format = Tr::tr("Inconnu"); d.issues << Tr::tr("signature de fichier non reconnue (ni GGUF, ni safetensors, ni archive zip PyTorch, ni pickle)."); }
     }
 
     if (computeSha256) {
@@ -433,23 +436,23 @@ ModelDiagnostic diagnoseModelFile(const QString& path, bool computeSha256) {
 
 QString formatDiagnostic(const ModelDiagnostic& d) {
     QStringList lines;
-    if (!d.exists) return "Fichier introuvable.";
-    lines << QString("Taille : %1 (%2 octets)").arg(mu::humanSize(d.sizeBytes)).arg(d.sizeBytes);
-    lines << QString("Format détecté : %1").arg(d.format.isEmpty() ? "inconnu" : d.format);
-    lines << QString("Structure : %1").arg(d.structurallyValid ? "cohérente (le conteneur a pu être analysé en entier)" : "PROBLÈME DÉTECTÉ (voir ci-dessous)");
-    if (d.tensorCount >= 0) lines << QString("Nombre de tenseurs/entrées : %1").arg(d.tensorCount);
-    if (!d.sha256.isEmpty()) lines << QString("SHA-256 : %1").arg(d.sha256);
+    if (!d.exists) return Tr::tr("Fichier introuvable.");
+    lines << Tr::tr("Taille : %1 (%2 octets)").arg(mu::humanSize(d.sizeBytes)).arg(d.sizeBytes);
+    lines << Tr::tr("Format détecté : %1").arg(d.format.isEmpty() ? Tr::tr("inconnu") : d.format);
+    lines << Tr::tr("Structure : %1").arg(d.structurallyValid ? Tr::tr("cohérente (le conteneur a pu être analysé en entier)") : Tr::tr("PROBLÈME DÉTECTÉ (voir ci-dessous)"));
+    if (d.tensorCount >= 0) lines << Tr::tr("Nombre de tenseurs/entrées : %1").arg(d.tensorCount);
+    if (!d.sha256.isEmpty()) lines << Tr::tr("SHA-256 : %1").arg(d.sha256);
     if (!d.issues.isEmpty()) {
-        lines << "" << "⚠ Problèmes détectés :";
+        lines << "" << Tr::tr("⚠ Problèmes détectés :");
         for (const QString& s : d.issues) lines << " • " + s;
     }
-    if (!d.archGuess.isEmpty()) lines << "" << "Interprétation (heuristique, non garantie) :" << d.archGuess;
+    if (!d.archGuess.isEmpty()) lines << "" << Tr::tr("Interprétation (heuristique, non garantie) :") << d.archGuess;
     if (!d.metadata.isEmpty()) {
-        lines << "" << "Métadonnées :";
+        lines << "" << Tr::tr("Métadonnées :");
         for (const QString& s : d.metadata) lines << " • " + s;
     }
     if (!d.sampleNames.isEmpty()) {
-        lines << "" << QString("Aperçu des noms (%1 affiché(s)) :").arg(d.sampleNames.size());
+        lines << "" << Tr::tr("Aperçu des noms (%1 affiché(s)) :").arg(d.sampleNames.size());
         for (const QString& s : d.sampleNames) lines << " • " + s;
     }
     return lines.join("\n");

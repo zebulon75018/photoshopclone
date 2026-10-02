@@ -1,16 +1,19 @@
 #include "Effect.h"
 #include "Inpaint.h"
+#include <QCoreApplication>
+
+namespace { struct Tr { Q_DECLARE_TR_FUNCTIONS(Retouch) }; }   // traductions hors classes QObject (voir translations/)
 
 // Effets de retouche qui ont besoin de connaître la sélection elle-même (pas seulement le résultat qui lui sera
 // appliqué après coup) : contrairement aux filtres et réglages, ils sont enregistrés via addMasked().
 void registerRetouch(EffectRegistry& R) {
     R.addMasked(
-        "retouch.inpaint", "Remplissage d'après le contenu (comblement)…", "Retouche",
+        "retouch.inpaint", Tr::tr("Remplissage d'après le contenu (comblement)…"), Tr::tr("Retouche"),
         {
-            P::Choice("algo", "Algorithme", {"Navier-Stokes (fluide)", "Telea (rapide, recommandé)", "MI-GAN (IA, modèle requis)"}, 1),
-            P::Int("radius", "Rayon de reconstruction (px)", 1, 100, 3),
-            P::Int("expand", "Étendre la zone sélectionnée (px)", 0, 100, 0),
-            P::Bool("sampleAll", "Échantillonner tous les calques", false),
+            P::Choice("algo", Tr::tr("Algorithme"), {Tr::tr("Navier-Stokes (fluide)"), Tr::tr("Telea (rapide, recommandé)"), Tr::tr("MI-GAN (IA, modèle requis)")}, 1),
+            P::Int("radius", Tr::tr("Rayon de reconstruction (px)"), 1, 100, 3),
+            P::Int("expand", Tr::tr("Étendre la zone sélectionnée (px)"), 0, 100, 0),
+            P::Bool("sampleAll", Tr::tr("Échantillonner tous les calques"), false),
         },
         [](const cv::Mat& src, const cv::Mat& sel, const Params& p) {
             if (p.i("algo") == 2) {   // MI-GAN : réseau de neurones (index 2, au-delà des constantes cv::INPAINT_*)

@@ -23,9 +23,9 @@ LayersPanel::LayersPanel(QWidget* parent) : QWidget(parent) {
     v->setContentsMargins(4, 4, 4, 4);
     m_blend = new QComboBox; m_blend->addItems(blendModeNames());
     m_opacity = new SliderSpin(0, 100, 100, 0);
-    m_lock = new QCheckBox("Verrouiller");
+    m_lock = new QCheckBox(tr("Verrouiller"));
     auto* r1 = new QHBoxLayout; r1->addWidget(m_blend, 1); r1->addWidget(m_lock);
-    auto* r2 = new QHBoxLayout; r2->addWidget(new QLabel("Opacité :")); r2->addWidget(m_opacity, 1);
+    auto* r2 = new QHBoxLayout; r2->addWidget(new QLabel(tr("Opacité :"))); r2->addWidget(m_opacity, 1);
     m_list = new QListWidget;
     m_list->setIconSize(QSize(44, 36));
     m_list->setDragDropMode(QAbstractItemView::InternalMove);
@@ -39,20 +39,20 @@ LayersPanel::LayersPanel(QWidget* parent) : QWidget(parent) {
         bar->addWidget(b);
         return b;
     };
-    mk("newlayer", "Nouveau calque (Ctrl+Maj+N)", [this] { if (m_doc) Ops::addLayer(m_doc); });
-    mk("duplicate", "Dupliquer le calque (Ctrl+J)", [this] { if (m_doc) Ops::layerViaCopy(m_doc, false); });
-    mk("mask", "Ajouter un masque de fusion", [this] { if (m_doc) Ops::addMask(m_doc, false); });
-    m_editMask = mk("mask", "Modifier le masque (sinon : les pixels)", [] {});
+    mk("newlayer", tr("Nouveau calque (Ctrl+Maj+N)"), [this] { if (m_doc) Ops::addLayer(m_doc); });
+    mk("duplicate", tr("Dupliquer le calque (Ctrl+J)"), [this] { if (m_doc) Ops::layerViaCopy(m_doc, false); });
+    mk("mask", tr("Ajouter un masque de fusion"), [this] { if (m_doc) Ops::addMask(m_doc, false); });
+    m_editMask = mk("mask", tr("Modifier le masque (sinon : les pixels)"), [] {});
     m_editMask->setCheckable(true); m_editMask->setText("✎"); m_editMask->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     bar->addStretch();
-    mk("delete", "Supprimer le calque", [this] { if (m_doc) Ops::deleteLayer(m_doc); });
+    mk("delete", tr("Supprimer le calque"), [this] { if (m_doc) Ops::deleteLayer(m_doc); });
     v->addLayout(r1); v->addLayout(r2); v->addWidget(m_list, 1); v->addLayout(bar);
 
     m_thumbTimer.setSingleShot(true); m_thumbTimer.setInterval(250);
     connect(&m_thumbTimer, &QTimer::timeout, this, &LayersPanel::updateThumbs);
     m_commitTimer.setSingleShot(true); m_commitTimer.setInterval(450);
     connect(&m_commitTimer, &QTimer::timeout, this, [this] {
-        if (m_doc && m_hasBefore) if (auto l = m_doc->activeLayer()) m_doc->pushLayerChange("Opacité du calque", l, m_before);
+        if (m_doc && m_hasBefore) if (auto l = m_doc->activeLayer()) m_doc->pushLayerChange(tr("Opacité du calque"), l, m_before);
         m_hasBefore = false;
     });
 
@@ -70,11 +70,11 @@ LayersPanel::LayersPanel(QWidget* parent) : QWidget(parent) {
 
     connect(m_blend, QOverload<int>::of(&QComboBox::activated), this, [this](int i) {
         if (!m_doc) return;
-        if (auto l = m_doc->activeLayer()) { LayerProps p = l->props; p.blend = BlendMode(i); Ops::setProps(m_doc, l, p, "Mode de fusion"); }
+        if (auto l = m_doc->activeLayer()) { LayerProps p = l->props; p.blend = BlendMode(i); Ops::setProps(m_doc, l, p, tr("Mode de fusion")); }
     });
     connect(m_lock, &QCheckBox::clicked, this, [this](bool on) {
         if (!m_doc) return;
-        if (auto l = m_doc->activeLayer()) { LayerProps p = l->props; p.locked = on; Ops::setProps(m_doc, l, p, on ? "Verrouiller le calque" : "Déverrouiller le calque"); }
+        if (auto l = m_doc->activeLayer()) { LayerProps p = l->props; p.locked = on; Ops::setProps(m_doc, l, p, on ? tr("Verrouiller le calque") : tr("Déverrouiller le calque")); }
     });
     connect(m_opacity, &SliderSpin::valueChanged, this, [this](double val) {
         if (m_building || !m_doc) return;
@@ -113,7 +113,7 @@ void LayersPanel::rebuild() {
             const auto& l = L[i];
             auto* it = new QListWidgetItem(m_list);
             QString label = l->props.name;
-            if (l->hasMask()) label += l->editingMask ? "   ▣ (masque actif)" : "   ▣";
+            if (l->hasMask()) label += l->editingMask ? tr("   ▣ (masque actif)") : "   ▣";
             if (l->isText()) label = "T  " + label;
             if (l->props.locked) label += "  🔒";
             it->setText(label);
@@ -163,41 +163,41 @@ void LayersPanel::rename(QListWidgetItem* it) {
     if (!l) return;
     if (l->isText()) { TextData td = *l->text; if (TextDialog::edit(this, td) && !td.text.trimmed().isEmpty()) Ops::commitText(m_doc, l, td); return; }
     bool ok = false;
-    QString n = Dlg::getText(this, "Renommer le calque", "Nom :", l->props.name, &ok);
-    if (ok && !n.isEmpty()) { LayerProps p = l->props; p.name = n; Ops::setProps(m_doc, l, p, "Renommer le calque"); }
+    QString n = Dlg::getText(this, tr("Renommer le calque"), tr("Nom :"), l->props.name, &ok);
+    if (ok && !n.isEmpty()) { LayerProps p = l->props; p.name = n; Ops::setProps(m_doc, l, p, tr("Renommer le calque")); }
 }
 
 void LayersPanel::contextMenu(const QPoint& pos) {
     if (!m_doc) return;
     auto l = m_doc->activeLayer();
     QMenu m;
-    m.addAction("Nouveau calque", [this] { Ops::addLayer(m_doc); });
-    m.addAction("Dupliquer le calque", [this] { Ops::layerViaCopy(m_doc, false); });
-    m.addAction("Supprimer le calque", [this] { Ops::deleteLayer(m_doc); });
+    m.addAction(tr("Nouveau calque"), [this] { Ops::addLayer(m_doc); });
+    m.addAction(tr("Dupliquer le calque"), [this] { Ops::layerViaCopy(m_doc, false); });
+    m.addAction(tr("Supprimer le calque"), [this] { Ops::deleteLayer(m_doc); });
     m.addSeparator();
-    if (l && !l->hasMask()) { m.addAction("Ajouter un masque (tout révéler)", [this] { Ops::addMask(m_doc, false); }); m.addAction("Ajouter un masque (tout masquer)", [this] { Ops::addMask(m_doc, true); }); }
+    if (l && !l->hasMask()) { m.addAction(tr("Ajouter un masque (tout révéler)"), [this] { Ops::addMask(m_doc, false); }); m.addAction(tr("Ajouter un masque (tout masquer)"), [this] { Ops::addMask(m_doc, true); }); }
     if (l && l->hasMask()) {
-        m.addAction(l->props.maskEnabled ? "Désactiver le masque" : "Activer le masque", [this, l] { LayerProps p = l->props; p.maskEnabled = !p.maskEnabled; Ops::setProps(m_doc, l, p, "Activer/désactiver le masque"); });
-        m.addAction("Appliquer le masque", [this] { Ops::deleteMask(m_doc, true); });
-        m.addAction("Supprimer le masque", [this] { Ops::deleteMask(m_doc, false); });
+        m.addAction(l->props.maskEnabled ? tr("Désactiver le masque") : tr("Activer le masque"), [this, l] { LayerProps p = l->props; p.maskEnabled = !p.maskEnabled; Ops::setProps(m_doc, l, p, tr("Activer/désactiver le masque")); });
+        m.addAction(tr("Appliquer le masque"), [this] { Ops::deleteMask(m_doc, true); });
+        m.addAction(tr("Supprimer le masque"), [this] { Ops::deleteMask(m_doc, false); });
     }
-    if (l && l->isText()) m.addAction("Pixelliser le texte", [this] { Ops::rasterizeText(m_doc); });
+    if (l && l->isText()) m.addAction(tr("Pixelliser le texte"), [this] { Ops::rasterizeText(m_doc); });
     m.addSeparator();
-    m.addAction("Fusionner vers le bas", [this] { Ops::mergeDown(m_doc); });
-    m.addAction("Fusionner les calques visibles", [this] { Ops::mergeVisible(m_doc); });
-    m.addAction("Aplatir l'image", [this] { Ops::flatten(m_doc); });
+    m.addAction(tr("Fusionner vers le bas"), [this] { Ops::mergeDown(m_doc); });
+    m.addAction(tr("Fusionner les calques visibles"), [this] { Ops::mergeVisible(m_doc); });
+    m.addAction(tr("Aplatir l'image"), [this] { Ops::flatten(m_doc); });
     m.exec(m_list->viewport()->mapToGlobal(pos));
 }
 
 // ============================================================================ Couleur
 ColorPanel::ColorPanel(QWidget* parent) : QWidget(parent) {
     auto* v = new QVBoxLayout(this);
-    m_target = new QComboBox; m_target->addItems({"Couleur de premier plan", "Couleur d'arrière-plan"});
+    m_target = new QComboBox; m_target->addItems({tr("Couleur de premier plan"), tr("Couleur d'arrière-plan")});
     m_r = new SliderSpin(0, 255, 0); m_g = new SliderSpin(0, 255, 0); m_b = new SliderSpin(0, 255, 0);
     m_hex = new QLineEdit; m_hex->setMaxLength(7); m_hex->setPlaceholderText("#RRGGBB");
     auto row = [&](const QString& t, QWidget* w) { auto* h = new QHBoxLayout; auto* l = new QLabel(t); l->setFixedWidth(16); h->addWidget(l); h->addWidget(w, 1); v->addLayout(h); };
     v->addWidget(m_target);
-    row("R", m_r); row("V", m_g); row("B", m_b); row("#", m_hex);
+    row(tr("R"), m_r); row(tr("V"), m_g); row(tr("B"), m_b); row("#", m_hex);
     v->addStretch();
     auto apply = [this] {
         if (m_busy) return;
@@ -248,7 +248,7 @@ void SwatchesPanel::mousePressEvent(QMouseEvent* e) {
 // ============================================================================ Histogramme
 HistogramPanel::HistogramPanel(QWidget* parent) : QWidget(parent) {
     auto* v = new QVBoxLayout(this);
-    m_channel = new QComboBox; m_channel->addItems({"RVB", "Rouge", "Vert", "Bleu", "Luminosité"});
+    m_channel = new QComboBox; m_channel->addItems({tr("RVB"), tr("Rouge"), tr("Vert"), tr("Bleu"), tr("Luminosité")});
     v->addWidget(m_channel);
     v->addStretch();
     setMinimumHeight(130);

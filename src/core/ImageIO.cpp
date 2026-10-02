@@ -11,6 +11,9 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <QCoreApplication>
+
+namespace { struct Tr { Q_DECLARE_TR_FUNCTIONS(ImageIO) }; }   // traductions hors classes QObject (voir translations/)
 
 namespace ImageIO {
 static const quint32 MAGIC = 0x50434C31;   // "PCL1"
@@ -28,20 +31,20 @@ static const qint32 MAX_TEXT_PIXEL_SIZE = 2000;   // maximum proposé par le dia
 static const qint64 MAX_PNG_BYTES = std::numeric_limits<int>::max() - 4096;
 
 QString openFilter() {
-    return "Toutes les images (*.pcl *.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp *.ppm *.pgm *.gif);;Projet PhotoClone (*.pcl);;Tous les fichiers (*)";
+    return Tr::tr("Toutes les images (*.pcl *.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp *.ppm *.pgm *.gif);;Projet PhotoClone (*.pcl);;Tous les fichiers (*)");
 }
 QString saveFilter() {
-    return "Projet PhotoClone (*.pcl);;PNG (*.png);;JPEG (*.jpg *.jpeg);;TIFF (*.tif *.tiff);;WebP (*.webp);;BMP (*.bmp)";
+    return Tr::tr("Projet PhotoClone (*.pcl);;PNG (*.png);;JPEG (*.jpg *.jpeg);;TIFF (*.tif *.tiff);;WebP (*.webp);;BMP (*.bmp)");
 }
 bool isNativeProject(const QString& p) { return p.endsWith(".pcl", Qt::CaseInsensitive); }
 
 static bool encodePng(const cv::Mat& m, QByteArray* out, QString* err) {
     std::vector<uchar> buf;
     try {
-        if (!cv::imencode(".png", m, buf, {cv::IMWRITE_PNG_COMPRESSION, 3})) { *err = "encodage PNG impossible."; return false; }
-    } catch (const cv::Exception& e) { *err = QString("encodage PNG impossible (%1).").arg(e.what()); return false; }
+        if (!cv::imencode(".png", m, buf, {cv::IMWRITE_PNG_COMPRESSION, 3})) { *err = Tr::tr("encodage PNG impossible."); return false; }
+    } catch (const cv::Exception& e) { *err = Tr::tr("encodage PNG impossible (%1).").arg(e.what()); return false; }
     if (qint64(buf.size()) > MAX_PNG_BYTES) {
-        *err = QString("trop volumineux pour un projet .pcl (PNG compressé de %1, limite %2). Réduisez la taille de l'image, "
+        *err = Tr::tr("trop volumineux pour un projet .pcl (PNG compressé de %1, limite %2). Réduisez la taille de l'image, "
                        "ou exportez une version aplatie (TIFF).").arg(mu::humanSize(qint64(buf.size())), mu::humanSize(MAX_PNG_BYTES));
         return false;
     }
@@ -82,7 +85,7 @@ static bool saveProject(Document* d, const QString& path, QString* err) {
         QByteArray img, msk;
         QString why;
         if (!encodePng(l->image, &img, &why) || (l->hasMask() && !encodePng(l->mask, &msk, &why))) {
-            if (err) *err = QString("Calque « %1 » : %2").arg(l->props.name, why);
+            if (err) *err = Tr::tr("Calque « %1 » : %2").arg(l->props.name, why);
             return false;                                   // sans commit() : le fichier temporaire est abandonné
         }
         s << l->props.name << l->props.visible << l->props.locked << l->props.opacity << qint32(l->props.blend) << l->props.maskEnabled;
@@ -93,7 +96,7 @@ static bool saveProject(Document* d, const QString& path, QString* err) {
             s << t.text << t.family << qint32(t.pixelSize) << t.bold << t.italic << t.underline << t.color << qint32(t.align) << t.pos;
         }
     }
-    if (s.status() != QDataStream::Ok || !f.commit()) { if (err) *err = "Écriture impossible : " + f.errorString(); return false; }
+    if (s.status() != QDataStream::Ok || !f.commit()) { if (err) *err = Tr::tr("Écriture impossible : %1").arg(f.errorString()); return false; }
     return true;
 }
 
@@ -105,10 +108,10 @@ static Document* loadProject(const QString& path, QString* err) {
     auto fail = [&](const QString& m) -> Document* { if (err) *err = m; return nullptr; };
     quint32 magic; qint32 ver, w, h, active, n;
     s >> magic >> ver >> w >> h >> active >> n;
-    if (s.status() != QDataStream::Ok || magic != MAGIC || n < 1) return fail("Fichier de projet invalide.");
-    if (ver != 1) return fail(QString("Version de projet non prise en charge (%1).").arg(ver));
+    if (s.status() != QDataStream::Ok || magic != MAGIC || n < 1) return fail(Tr::tr("Fichier de projet invalide."));
+    if (ver != 1) return fail(Tr::tr("Version de projet non prise en charge (%1).").arg(ver));
     if (w <= 0 || h <= 0 || w > MAX_SIDE || h > MAX_SIDE || qint64(w) * h > MAX_PIXELS)
-        return fail(QString("Dimensions du projet hors limites (%1 × %2 px ; maximum %3 px de côté et %4 mégapixels).")
+        return fail(Tr::tr("Dimensions du projet hors limites (%1 × %2 px ; maximum %3 px de côté et %4 mégapixels).")
                         .arg(w).arg(h).arg(MAX_SIDE).arg(MAX_PIXELS / 1000000));
     const cv::Size size(w, h);
     // Index actif ramené dans les bornes : plusieurs opérations (supprimer, fusionner, déplacer) l'utilisent tel quel.
@@ -117,16 +120,16 @@ static Document* loadProject(const QString& path, QString* err) {
         LayerProps p; qint32 blend; QByteArray img, msk; bool isText;
         s >> p.name >> p.visible >> p.locked >> p.opacity >> blend >> p.maskEnabled >> img >> msk >> isText;
         if (s.status() != QDataStream::Ok || blend < 0 || blend >= int(BlendMode::Count) || !std::isfinite(p.opacity))
-            return fail("Calque corrompu.");
+            return fail(Tr::tr("Calque corrompu."));
         p.blend = BlendMode(blend);
         p.opacity = std::clamp(p.opacity, 0.f, 1.f);
         cv::Mat m = decodePlane(img, cv::IMREAD_UNCHANGED, CV_8UC4, size);
-        if (m.empty()) return fail("Calque corrompu.");
+        if (m.empty()) return fail(Tr::tr("Calque corrompu."));
         auto l = Layer::create(p.name, m);
         l->props = p;
         if (!msk.isEmpty()) {
             l->mask = decodePlane(msk, cv::IMREAD_GRAYSCALE, CV_8UC1, size);
-            if (l->mask.empty()) return fail("Masque de calque corrompu.");
+            if (l->mask.empty()) return fail(Tr::tr("Masque de calque corrompu."));
         }
         if (isText) {
             TextData t; qint32 px, al;
@@ -136,7 +139,7 @@ static Document* loadProject(const QString& path, QString* err) {
         }
         st.layers.push_back(l);
     }
-    if (s.status() != QDataStream::Ok) return fail("Lecture incomplète.");
+    if (s.status() != QDataStream::Ok) return fail(Tr::tr("Lecture incomplète."));
     std::unique_ptr<Document> d(new Document(QSize(w, h)));   // composite alloué seulement une fois tout le contenu validé
     d->applyStructure(st);
     d->path = path;
@@ -164,9 +167,9 @@ Document* open(const QString& path, QString* err) {
         QImage q(path);
         if (!q.isNull()) m = mu::fromQImage(q);
     }
-    if (m.empty()) { if (err) *err = "Format d'image non reconnu ou fichier illisible."; return nullptr; }
+    if (m.empty()) { if (err) *err = Tr::tr("Format d'image non reconnu ou fichier illisible."); return nullptr; }
     auto* d = new Document(QSize(m.cols, m.rows));
-    d->applyStructure({QSize(m.cols, m.rows), {Layer::create("Arrière-plan", m)}, 0});
+    d->applyStructure({QSize(m.cols, m.rows), {Layer::create(Tr::tr("Arrière-plan"), m)}, 0});
     d->path = path;
     d->undoStack()->clear();
     return d;
@@ -194,7 +197,7 @@ bool save(Document* d, const QString& path, QString* err, int q) {
     } else if (ext == "webp") params = {cv::IMWRITE_WEBP_QUALITY, q};
     bool ok = false;
     try { ok = cv::imwrite(path.toStdString(), out, params); } catch (const cv::Exception& e) { if (err) *err = e.what(); return false; }
-    if (!ok) { if (err) *err = "Écriture impossible (format ou chemin non supporté)."; return false; }
+    if (!ok) { if (err) *err = Tr::tr("Écriture impossible (format ou chemin non supporté)."); return false; }
     return true;
 }
 }

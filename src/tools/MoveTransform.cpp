@@ -5,12 +5,15 @@
 #include "ui/OptionsBar.h"
 #include <opencv2/imgproc.hpp>
 #include <cmath>
+#include <QCoreApplication>
+
+namespace { struct Tr { Q_DECLARE_TR_FUNCTIONS(MoveTransform) }; }   // traductions hors classes QObject (voir translations/)
 
 static cv::Mat translation(double dx, double dy) { return (cv::Mat_<double>(2, 3) << 1, 0, dx, 0, 1, dy); }
 
 // ============================================================================ MoveTool
 void MoveTool::buildOptions(OptionsBar& o) {
-    o.addLabel("Ctrl+clic : sélectionner le calque sous le curseur   •   Maj : contraindre l'axe   •   Flèches : décaler de 1 px (Maj = 10 px)");
+    o.addLabel(tr("Ctrl+clic : sélectionner le calque sous le curseur   •   Maj : contraindre l'axe   •   Flèches : décaler de 1 px (Maj = 10 px)"));
 }
 
 void MoveTool::press(const ToolEvent& e) {
@@ -36,7 +39,7 @@ void MoveTool::release(const ToolEvent& e) {
     if (!m_drag) return;
     m_drag = false;
     double dx = std::round(e.pos.x() - m_start.x()), dy = std::round(e.pos.y() - m_start.y());
-    if (dx == 0 && dy == 0) m_fc.cancel(); else m_fc.commit("Déplacer");
+    if (dx == 0 && dy == 0) m_fc.cancel(); else m_fc.commit(tr("Déplacer"));
 }
 
 bool MoveTool::keyPress(QKeyEvent* k, CanvasView* v) {
@@ -47,7 +50,7 @@ bool MoveTool::keyPress(QKeyEvent* k, CanvasView* v) {
     default: return false;
     }
     if (m_drag) return true;
-    if (m_fc.begin(v->document())) { m_fc.update(translation(dx, dy)); m_fc.commit("Décaler"); }
+    if (m_fc.begin(v->document())) { m_fc.update(translation(dx, dy)); m_fc.commit(tr("Décaler")); }
     return true;
 }
 
@@ -61,7 +64,7 @@ bool TransformTool::begin(Document* d) {
 }
 
 void TransformTool::activate() {
-    Workspace::instance().message("Transformation : Entrée = valider, Échap = annuler, Maj = proportionnel / angle 15°, Alt = depuis le centre");
+    Workspace::instance().message(Tr::tr("Transformation : Entrée = valider, Échap = annuler, Maj = proportionnel / angle 15°, Alt = depuis le centre"));
 }
 
 void TransformTool::press(const ToolEvent& e) { if (e.button == Qt::LeftButton && m_fc.active()) m_box.press(e); }
@@ -85,14 +88,14 @@ bool TransformTool::keyPress(QKeyEvent* k, CanvasView*) {
 
 void TransformTool::commit() {
     if (!m_fc.active()) return;
-    if (m_dirty) m_fc.commit("Transformation manuelle"); else m_fc.cancel();
+    if (m_dirty) m_fc.commit(Tr::tr("Transformation manuelle")); else m_fc.cancel();
     m_dirty = false;
     emit finished();
 }
 
 void TransformTool::deactivate() {   // changer d'outil valide la transformation en cours (comme Photoshop)
     if (!m_fc.active()) return;
-    if (m_dirty) m_fc.commit("Transformation manuelle"); else m_fc.cancel();
+    if (m_dirty) m_fc.commit(Tr::tr("Transformation manuelle")); else m_fc.cancel();
     m_dirty = false;
 }
 

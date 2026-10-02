@@ -10,6 +10,8 @@
 #include <mutex>
 #include <opencv2/imgproc.hpp>
 
+namespace { struct Tr { Q_DECLARE_TR_FUNCTIONS(SdBackend) }; }   // traductions hors classes QObject (voir translations/)
+
 #ifdef PC_HAVE_SDCPP
 #include <QLibrary>
 #include <cstdlib>
@@ -54,29 +56,29 @@ bool hasModel(const Config& c) { return !c.model.trimmed().isEmpty() || !c.diffu
 
 QString validateModelFile(const QString& path) {
     QFileInfo fi(path);
-    if (!fi.exists() || !fi.isFile()) return "fichier introuvable : " + path;
-    if (!fi.isReadable()) return "fichier illisible (droits) : " + path;
-    if (fi.size() < 16) return "fichier vide ou trop petit pour être un modèle.";
+    if (!fi.exists() || !fi.isFile()) return Tr::tr("fichier introuvable : %1").arg(path);
+    if (!fi.isReadable()) return Tr::tr("fichier illisible (droits) : %1").arg(path);
+    if (fi.size() < 16) return Tr::tr("fichier vide ou trop petit pour être un modèle.");
     QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) return "impossible d'ouvrir le fichier.";
+    if (!f.open(QIODevice::ReadOnly)) return Tr::tr("impossible d'ouvrir le fichier.");
     const QByteArray head = f.read(16);
-    if (head.size() < 16) return "fichier illisible.";
+    if (head.size() < 16) return Tr::tr("fichier illisible.");
     if (head.startsWith("GGUF")) return {};                                     // GGUF
     if (head.startsWith("PK\x03\x04")) return {};                               // ckpt / pt (archive zip PyTorch)
     if (static_cast<uchar>(head[0]) == 0x80) return {};                         // pickle brut (anciens .ckpt)
     quint64 n = 0;                                                             // safetensors : u64 LE = taille de l'en-tête JSON
     for (int i = 7; i >= 0; --i) n = (n << 8) | static_cast<uchar>(head[i]);
     if (n > 0 && n < (256ull << 20) && n + 8 <= static_cast<quint64>(fi.size()) && head[8] == '{') return {};
-    return "format non reconnu (attendu : .safetensors, .gguf ou .ckpt).";
+    return Tr::tr("format non reconnu (attendu : .safetensors, .gguf ou .ckpt).");
 }
 
 QString validateConfig(const Config& c) {
-    if (!hasModel(c)) return "aucun modèle configuré (menu IA > Réglages de Stable Diffusion…).";
+    if (!hasModel(c)) return Tr::tr("aucun modèle configuré (menu IA > Réglages de Stable Diffusion…).");
     struct F { const char* label; const QString* path; };
-    for (const F& f : {F{"Checkpoint", &c.model}, F{"VAE", &c.vae}, F{"Modèle de diffusion", &c.diffusionModel},
+    for (const F& f : {F{"Checkpoint", &c.model}, F{"VAE", &c.vae}, F{QT_TRANSLATE_NOOP("SdBackend", "Modèle de diffusion"), &c.diffusionModel},
                        F{"CLIP-L", &c.clipL}, F{"CLIP-G", &c.clipG}, F{"T5-XXL", &c.t5xxl}})
         if (!f.path->trimmed().isEmpty())
-            if (QString bad = validateModelFile(*f.path); !bad.isEmpty()) return QString("%1 : %2").arg(f.label, bad);
+            if (QString bad = validateModelFile(*f.path); !bad.isEmpty()) return Tr::tr("%1 : %2").arg(Tr::tr(f.label), bad);
     return {};
 }
 
@@ -98,10 +100,16 @@ QStringList logTail(int n = 12) {
     std::lock_guard<std::mutex> lk(g_logMtx);
     return g_logRing.mid(std::max(0, int(g_logRing.size()) - n));
 }
+// Préfixe « [NIVEAU] » des lignes du journal (niveaux de stable-diffusion.cpp : 0 DEBUG … 3 avertissement, 4 erreur). Une
+// seule fonction pour écrire ET filtrer les lignes : le filtrage reste juste quelle que soit la langue de l'interface.
+QString logLevelTag(int level) {
+    static const char* names[] = {"DEBUG", "VERBOSE", "INFO", QT_TRANSLATE_NOOP("SdBackend", "ATTENTION"), QT_TRANSLATE_NOOP("SdBackend", "ERREUR")};
+    return QString("[%1]").arg(Tr::tr(names[std::clamp(level, 0, 4)]));
+}
 [[maybe_unused]] QString lastErrorLines() {
     std::lock_guard<std::mutex> lk(g_logMtx);
     QStringList errs;
-    for (const QString& l : g_logRing) if (l.startsWith("[ERREUR]") || l.startsWith("[ATTENTION]")) errs << l;
+    for (const QString& l : g_logRing) if (l.startsWith(logLevelTag(4)) || l.startsWith(logLevelTag(3))) errs << l;
     return errs.mid(std::max(0, int(errs.size()) - 3)).join("\n");
 }
 }
@@ -138,15 +146,14 @@ QString g_ctxKey;
 
 void logCb(sd_log_level_t level, const char* text, void*) {
     if (level < SD_LOG_INFO || !text) return;
-    static const char* names[] = {"DEBUG", "VERBOSE", "INFO", "ATTENTION", "ERREUR"};
     QString msg = QString::fromUtf8(text).trimmed();
     if (msg.isEmpty()) return;
-    const QString line = QString("[%1] %2").arg(names[std::clamp(int(level), 0, 4)], msg);
+    const QString line = logLevelTag(int(level)) + " " + msg;
     pushLog(line);
     if (Job* j = g_activeJob.load()) {
         j->reportLog(int(level), msg);
         static const QRegularExpression rx("generating image:\\s*(\\d+)/(\\d+)");   // « generating image: 2/4 - seed … »
-        if (auto m = rx.match(msg); m.hasMatch()) j->reportStage(QString("Image %1 sur %2").arg(m.captured(1), m.captured(2)));
+        if (auto m = rx.match(msg); m.hasMatch()) j->reportStage(Tr::tr("Image %1 sur %2").arg(m.captured(1), m.captured(2)));
     }
 }
 
@@ -193,7 +200,7 @@ bool ensureLoaded(QString* error) {
             res(a.supportsImage, "sd_ctx_supports_image_generation"); res(a.versionName, "sd_get_model_version_name");
             res(a.imgParamsInit, "sd_img_gen_params_init"); res(a.generate, "generate_image"); res(a.freeImages, "free_sd_images");
             res(a.cancel, "sd_cancel_generation"); res(a.strToSampler, "str_to_sample_method"); res(a.strToScheduler, "str_to_scheduler");
-            if (!all) { problems << cand + " : symboles manquants (" + missing.join(", ") + ") — bibliothèque incompatible ?"; lib->unload(); delete lib; continue; }
+            if (!all) { problems << Tr::tr("%1 : symboles manquants (%2) — bibliothèque incompatible ?").arg(cand, missing.join(", ")); lib->unload(); delete lib; continue; }
             a.tried = true; a.ok = true; a.lib = lib; a.path = cand;
             g_api = a;
             g_api.setLog(logCb, nullptr);
@@ -201,8 +208,8 @@ bool ensureLoaded(QString* error) {
             break;
         }
         if (!g_api.ok) g_api.error = problems.isEmpty()
-            ? "libpcsd.so introuvable (voir depend/stablediffusioncpp/BUILD_FROM_SOURCE.md)."
-            : "impossible de charger libpcsd.so : " + problems.join(" ; ");
+            ? Tr::tr("libpcsd.so introuvable (voir depend/stablediffusioncpp/BUILD_FROM_SOURCE.md).")
+            : Tr::tr("impossible de charger libpcsd.so : %1").arg(problems.join(" ; "));
     }
     if (!g_api.ok && error) *error = g_api.error;
     return g_api.ok;
@@ -242,7 +249,7 @@ sd_ctx_t* acquireContext(const Config& cfg, QString* error) {
     sd_ctx_t* ctx = g_api.newCtx(&p);
     if (!ctx) {
         if (error) {
-            *error = "Impossible de charger le modèle (fichier incompatible, corrompu ou mémoire insuffisante).";
+            *error = Tr::tr("Impossible de charger le modèle (fichier incompatible, corrompu ou mémoire insuffisante).");
             if (QString e = lastErrorLines(); !e.isEmpty()) *error += "\n" + e;
         }
         return nullptr;
@@ -260,11 +267,11 @@ Result runReal(Job& job) {
     if (!ensureLoaded(&err)) { r.error = err; return r; }
     if (QString bad = validateConfig(q.config); !bad.isEmpty()) { r.error = bad; return r; }
 
-    job.reportStage("Chargement du modèle (peut être long la première fois)…");
+    job.reportStage(Tr::tr("Chargement du modèle (peut être long la première fois)…"));
     sd_ctx_t* ctx = acquireContext(q.config, &err);
     if (!ctx) { r.error = err; return r; }
     if (job.cancelRequested()) { r.cancelled = true; return r; }
-    if (!g_api.supportsImage(ctx)) { r.error = "Ce modèle ne prend pas en charge la génération d'images."; return r; }
+    if (!g_api.supportsImage(ctx)) { r.error = Tr::tr("Ce modèle ne prend pas en charge la génération d'images."); return r; }
     r.modelVersion = QString::fromUtf8(g_api.versionName(ctx));
 
     sd_img_gen_params_t gp;
@@ -283,11 +290,11 @@ Result runReal(Job& job) {
     gp.seed = seed;
     if (!q.sampler.isEmpty()) {
         gp.sample_params.sample_method = g_api.strToSampler(q.sampler.toUtf8().constData());
-        if (gp.sample_params.sample_method == SAMPLE_METHOD_COUNT) { r.error = "Échantillonneur inconnu : " + q.sampler; return r; }
+        if (gp.sample_params.sample_method == SAMPLE_METHOD_COUNT) { r.error = Tr::tr("Échantillonneur inconnu : %1").arg(q.sampler); return r; }
     }
     if (!q.scheduler.isEmpty()) {
         gp.sample_params.scheduler = g_api.strToScheduler(q.scheduler.toUtf8().constData());
-        if (gp.sample_params.scheduler == SCHEDULER_COUNT) { r.error = "Ordonnanceur inconnu : " + q.scheduler; return r; }
+        if (gp.sample_params.scheduler == SCHEDULER_COUNT) { r.error = Tr::tr("Ordonnanceur inconnu : %1").arg(q.scheduler); return r; }
     }
     if (q.vaeTiling) gp.vae_tiling_params.enabled = true;
 
@@ -300,14 +307,14 @@ Result runReal(Job& job) {
     }
 
     if (job.cancelRequested()) { r.cancelled = true; return r; }
-    job.reportStage(q.mode == Request::Inpaint ? "Inpainting…" : "Génération…");
+    job.reportStage(q.mode == Request::Inpaint ? Tr::tr("Inpainting…") : Tr::tr("Génération…"));
     sd_image_t* imgs = nullptr;
     int n = 0;
     const bool ok = g_api.generate(ctx, &gp, &imgs, &n);
     if (!ok || !imgs || n <= 0) {
         if (imgs) g_api.freeImages(imgs, n);
         if (job.cancelRequested()) { r.cancelled = true; return r; }
-        r.error = "La génération a échoué.";
+        r.error = Tr::tr("La génération a échoué.");
         if (QString e = lastErrorLines(); !e.isEmpty()) r.error += "\n" + e;
         return r;
     }
@@ -322,7 +329,7 @@ Result runReal(Job& job) {
     }
     g_api.freeImages(imgs, n);
     if (job.cancelRequested()) { r.images.clear(); r.cancelled = true; return r; }
-    if (r.images.empty()) { r.error = "Le modèle n'a renvoyé aucune image exploitable."; return r; }
+    if (r.images.empty()) { r.error = Tr::tr("Le modèle n'a renvoyé aucune image exploitable."); return r; }
     r.ok = true;
     r.seed = seed;
     return r;
@@ -349,13 +356,13 @@ void unloadModel() {
 namespace {
 Result runReal(Job&) {
     Result r;
-    r.error = "stable-diffusion.cpp n'a pas été compilé dans cette version de PhotoClone (voir depend/stablediffusioncpp/BUILD_FROM_SOURCE.md).";
+    r.error = Tr::tr("stable-diffusion.cpp n'a pas été compilé dans cette version de PhotoClone (voir depend/stablediffusioncpp/BUILD_FROM_SOURCE.md).");
     return r;
 }
 }
 bool libraryCompiled() { return false; }
 bool libraryLoaded(QString* error) {
-    if (error) *error = "stable-diffusion.cpp n'a pas été compilé dans cette version de PhotoClone.";
+    if (error) *error = Tr::tr("stable-diffusion.cpp n'a pas été compilé dans cette version de PhotoClone.");
     return false;
 }
 QString libraryPath() { return {}; }
@@ -378,10 +385,10 @@ void Job::run() {
         res = g_test ? g_test(m_req, *this) : runReal(*this);
     } catch (const std::exception& e) {
         res = Result{};
-        res.error = QString("Erreur interne : ") + e.what();
+        res.error = Tr::tr("Erreur interne : %1").arg(QString::fromUtf8(e.what()));
     } catch (...) {
         res = Result{};
-        res.error = "Erreur interne inconnue.";
+        res.error = tr("Erreur interne inconnue.");
     }
     g_activeJob = nullptr;
     if (m_cancel.load()) {          // annuler = abandonner : aucun résultat partiel n'est livré
@@ -406,22 +413,22 @@ Job* start(const Request& r, QString* why) {
     static const bool registered = (qRegisterMetaType<Sd::Result>("Sd::Result"), true);
     Q_UNUSED(registered);
     auto fail = [&](const QString& m) -> Job* { if (why) *why = m; return nullptr; };
-    if (g_job && g_job->isRunning() && !g_job->wait(1500)) return fail("Une génération est déjà en cours.");
+    if (g_job && g_job->isRunning() && !g_job->wait(1500)) return fail(Tr::tr("Une génération est déjà en cours."));
     if (!g_test) {
         QString e;
-        if (!libraryCompiled()) return fail("stable-diffusion.cpp n'a pas été compilé dans cette version de PhotoClone.");
+        if (!libraryCompiled()) return fail(Tr::tr("stable-diffusion.cpp n'a pas été compilé dans cette version de PhotoClone."));
         if (!libraryLoaded(&e)) return fail(e);
         if (QString bad = validateConfig(r.config); !bad.isEmpty()) return fail(bad);
     }
     if (r.width < 64 || r.height < 64 || r.width > 4096 || r.height > 4096 || r.width % 8 || r.height % 8)
-        return fail(QString("Taille invalide (%1 × %2) : multiples de 8 entre 64 et 4096 requis.").arg(r.width).arg(r.height));
-    if (r.steps < 1 || r.steps > 200) return fail("Nombre d'étapes invalide (1 à 200).");
-    if (r.batch < 1 || r.batch > 8) return fail("Nombre de variantes invalide (1 à 8).");
+        return fail(Tr::tr("Taille invalide (%1 × %2) : multiples de 8 entre 64 et 4096 requis.").arg(r.width).arg(r.height));
+    if (r.steps < 1 || r.steps > 200) return fail(Tr::tr("Nombre d'étapes invalide (1 à 200)."));
+    if (r.batch < 1 || r.batch > 8) return fail(Tr::tr("Nombre de variantes invalide (1 à 8)."));
     if (r.mode == Request::Inpaint) {
         if (r.initImage.type() != CV_8UC4 || r.mask.type() != CV_8UC1 || r.initImage.cols != r.width || r.initImage.rows != r.height ||
             r.mask.size() != r.initImage.size())
-            return fail("Inpainting : image (BGRA) et masque (8 bits) doivent avoir la taille de travail.");
-        if (cv::countNonZero(r.mask) == 0) return fail("Inpainting : le masque est vide.");
+            return fail(Tr::tr("Inpainting : image (BGRA) et masque (8 bits) doivent avoir la taille de travail."));
+        if (cv::countNonZero(r.mask) == 0) return fail(Tr::tr("Inpainting : le masque est vide."));
     }
     auto* j = new Job;
     j->m_req = r;

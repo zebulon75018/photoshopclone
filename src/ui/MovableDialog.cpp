@@ -21,6 +21,9 @@
 #include <QVBoxLayout>
 #include <functional>
 #include <vector>
+#include <QCoreApplication>
+
+namespace { struct Tr { Q_DECLARE_TR_FUNCTIONS(MovableDialog) }; }   // traductions hors classes QObject (voir translations/)
 
 namespace {
 QPoint clampInside(const QWidget* host, QPoint p) {
@@ -40,7 +43,7 @@ public:
         l->setContentsMargins(8, 0, 0, 0);
         auto* t = new QLabel(title);
         t->setAttribute(Qt::WA_TransparentForMouseEvents);
-        auto* x = new QToolButton; x->setText("✕"); x->setToolTip("Fermer (Échap)");
+        auto* x = new QToolButton; x->setText("✕"); x->setToolTip(Tr::tr("Fermer (Échap)"));
         QObject::connect(x, &QToolButton::clicked, [onClose] { onClose(); });
         l->addWidget(t, 1); l->addWidget(x);
         setCursor(Qt::SizeAllCursor);
@@ -138,8 +141,9 @@ int MovableDialog::exec() { return execMovable(this, positionKey()); }
 
 void frenchButtons(QDialogButtonBox* bb) {
     struct B { QDialogButtonBox::StandardButton b; const char* t; };
-    for (B x : {B{QDialogButtonBox::Ok, "OK"}, B{QDialogButtonBox::Cancel, "Annuler"}, B{QDialogButtonBox::Reset, "Réinitialiser"}, B{QDialogButtonBox::Close, "Fermer"}})
-        if (auto* b = bb->button(x.b)) b->setText(QString::fromUtf8(x.t));
+    for (B x : {B{QDialogButtonBox::Ok, "OK"}, B{QDialogButtonBox::Cancel, QT_TRANSLATE_NOOP("MovableDialog", "Annuler")},
+                B{QDialogButtonBox::Reset, QT_TRANSLATE_NOOP("MovableDialog", "Réinitialiser")}, B{QDialogButtonBox::Close, QT_TRANSLATE_NOOP("MovableDialog", "Fermer")}})
+        if (auto* b = bb->button(x.b)) b->setText(Tr::tr(x.t));
 }
 
 namespace Dlg {

@@ -16,7 +16,7 @@ class MoveTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "move"; }
-    QString name() const override { return "Déplacement (V)"; }
+    QString name() const override { return tr("Déplacement (V)"); }
     QCursor cursor() const override { return Qt::SizeAllCursor; }
     void press(const ToolEvent&) override;
     void move(const ToolEvent&) override;
@@ -32,7 +32,7 @@ class TransformTool : public Tool {   // Édition > Transformation manuelle (Ctr
     Q_OBJECT
 public:
     QString id() const override { return "transform"; }
-    QString name() const override { return "Transformation manuelle"; }
+    QString name() const override { return tr("Transformation manuelle"); }
     void press(const ToolEvent&) override;
     void move(const ToolEvent&) override;
     void release(const ToolEvent&) override { m_box.release(); }
@@ -59,7 +59,7 @@ class SelectionTransformTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "sel_transform"; }
-    QString name() const override { return "Transformation de la sélection (M)"; }
+    QString name() const override { return tr("Transformation de la sélection (M)"); }
     void press(const ToolEvent&) override;
     void move(const ToolEvent&) override;
     void release(const ToolEvent&) override { m_box.release(); }
@@ -96,7 +96,7 @@ class MarqueeTool : public Tool {
 public:
     explicit MarqueeTool(bool ellipse) : m_ellipse(ellipse) {}
     QString id() const override { return m_ellipse ? "marquee_ellipse" : "marquee_rect"; }
-    QString name() const override { return m_ellipse ? "Sélection elliptique (M)" : "Sélection rectangulaire (M)"; }
+    QString name() const override { return m_ellipse ? tr("Sélection elliptique (M)") : tr("Sélection rectangulaire (M)"); }
     void press(const ToolEvent&) override;
     void move(const ToolEvent&) override;
     void release(const ToolEvent&) override;
@@ -112,7 +112,7 @@ class LassoTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "lasso"; }
-    QString name() const override { return "Lasso (L)"; }
+    QString name() const override { return tr("Lasso (L)"); }
     void press(const ToolEvent&) override;
     void move(const ToolEvent&) override;
     void release(const ToolEvent&) override;
@@ -127,7 +127,7 @@ class PolyLassoTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "lasso_poly"; }
-    QString name() const override { return "Lasso polygonal (L)"; }
+    QString name() const override { return tr("Lasso polygonal (L)"); }
     void press(const ToolEvent&) override;
     void move(const ToolEvent&) override;
     void doubleClick(const ToolEvent&) override { close(); }
@@ -145,7 +145,7 @@ class WandTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "wand"; }
-    QString name() const override { return "Baguette magique (W)"; }
+    QString name() const override { return tr("Baguette magique (W)"); }
     void press(const ToolEvent&) override;
     void buildOptions(OptionsBar&) override;
 };
@@ -158,7 +158,7 @@ class SamTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "sam"; }
-    QString name() const override { return "Sélection par IA — MobileSAM (W)"; }
+    QString name() const override { return tr("Sélection par IA — MobileSAM (W)"); }
     void press(const ToolEvent&) override;
     void move(const ToolEvent&) override;
     void release(const ToolEvent&) override;
@@ -180,7 +180,7 @@ class CropTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "crop"; }
-    QString name() const override { return "Recadrage (C)"; }
+    QString name() const override { return tr("Recadrage (C)"); }
     void press(const ToolEvent&) override;
     void move(const ToolEvent&) override;
     void release(const ToolEvent&) override;
@@ -199,7 +199,7 @@ class EyedropperTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "eyedropper"; }
-    QString name() const override { return "Pipette (I)"; }
+    QString name() const override { return tr("Pipette (I)"); }
     void press(const ToolEvent& e) override { sample(e); }
     void move(const ToolEvent& e) override { if (e.buttons & Qt::LeftButton) sample(e); }
     void buildOptions(OptionsBar&) override;
@@ -237,7 +237,7 @@ class BucketTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "bucket"; }
-    QString name() const override { return "Pot de peinture (G)"; }
+    QString name() const override { return tr("Pot de peinture (G)"); }
     void press(const ToolEvent&) override;
     void buildOptions(OptionsBar&) override;
 };
@@ -246,7 +246,7 @@ class GradientTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "gradient"; }
-    QString name() const override { return "Dégradé (G)"; }
+    QString name() const override { return tr("Dégradé (G)"); }
     void press(const ToolEvent& e) override { if (e.button == Qt::LeftButton) { m_a = m_b = e.pos; m_drag = true; } }
     void move(const ToolEvent& e) override { if (m_drag) { m_b = e.pos; e.view->refresh(); } }
     void release(const ToolEvent&) override;
@@ -262,7 +262,7 @@ class TextTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "text"; }
-    QString name() const override { return "Texte (T)"; }
+    QString name() const override { return tr("Texte (T)"); }
     QCursor cursor() const override { return Qt::IBeamCursor; }
     void press(const ToolEvent&) override;
     void buildOptions(OptionsBar&) override;
@@ -272,7 +272,7 @@ class ShapeTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "shape"; }
-    QString name() const override { return "Forme (U)"; }
+    QString name() const override { return tr("Forme (U)"); }
     void press(const ToolEvent& e) override { if (e.button == Qt::LeftButton) { m_a = m_b = e.pos; m_drag = true; } }
     void move(const ToolEvent&) override;
     void release(const ToolEvent&) override;
@@ -288,7 +288,7 @@ class HandTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "hand"; }
-    QString name() const override { return "Main (H)"; }
+    QString name() const override { return tr("Main (H)"); }
     QCursor cursor() const override { return m_drag ? Qt::ClosedHandCursor : Qt::OpenHandCursor; }
     void press(const ToolEvent& e) override { m_drag = true; m_last = e.widgetPos; }
     void move(const ToolEvent& e) override;
@@ -301,7 +301,7 @@ class ZoomTool : public Tool {
     Q_OBJECT
 public:
     QString id() const override { return "zoom"; }
-    QString name() const override { return "Zoom (Z)"; }
+    QString name() const override { return tr("Zoom (Z)"); }
     void press(const ToolEvent&) override;
     void move(const ToolEvent&) override;
     void release(const ToolEvent&) override;
