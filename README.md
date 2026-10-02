@@ -1,5 +1,7 @@
 # PhotoClone — a Photoshop-like image editor (Qt5 + OpenCV, Linux)
 
+![a friends drawing](/logoclone.jpg)
+
 *(Version française : [README.fr.md](README.fr.md))*
 
 ![screen shot](/shot1.png)
