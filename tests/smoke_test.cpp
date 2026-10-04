@@ -46,6 +46,9 @@
 #include <QFrame>
 #include <QMenuBar>
 #include <QSettings>
+#include <QDataStream>
+#include <opencv2/imgcodecs.hpp>
+#include "ai/SdModelDiagnostics.h"
 
 static int fails = 0;
 #define CHECK(c) do { if (!(c)) { ++fails; qWarning() << "ÉCHEC:" << #c << "ligne" << __LINE__; } } while (0)
@@ -725,6 +728,78 @@ int main(int argc, char** argv) {
     CHECK(ImageIO::save(d.get(), png, &err) && ImageIO::save(d.get(), jpg, &err));
     std::unique_ptr<Document> r2(ImageIO::open(png, &err));
     CHECK(r2 && r2->size() == d->size());
+
+    {   // projets .pcl forgés : refusés proprement (ou ramenés dans les bornes), jamais d'accès mémoire hors limites
+        auto pngOf = [](const cv::Mat& m) { std::vector<uchar> b; cv::imencode(".png", m, b); return QByteArray(reinterpret_cast<const char*>(b.data()), int(b.size())); };
+        const QByteArray img = pngOf(cv::Mat(30, 40, CV_8UC4, cv::Scalar(10, 20, 30, 255)));
+        const QByteArray goodMask = pngOf(cv::Mat(30, 40, CV_8UC1, cv::Scalar(128)));
+        int k = 0;
+        auto forge = [&](qint32 w, qint32 h, qint32 active, qint32 n, qint32 blend, const QByteArray& layer, const QByteArray& mask) {
+            const QString path = tmp.path() + QString("/forge%1.pcl").arg(k++);
+            QFile f(path);
+            f.open(QIODevice::WriteOnly);
+            QDataStream s(&f);
+            s.setVersion(QDataStream::Qt_5_12);
+            s << quint32(0x50434C31) << qint32(1) << w << h << active << n;
+            for (int i = 0; i < n; ++i) s << QString("calque") << true << false << 1.f << blend << true << layer << mask << false;
+            return path;
+        };
+        QString e;
+        auto load = [&](const QString& path) { return std::unique_ptr<Document>(ImageIO::open(path, &e)); };
+        auto ok = load(forge(40, 30, 0, 1, 0, img, goodMask));
+        CHECK(ok && ok->size() == QSize(40, 30) && ok->activeLayer()->hasMask());
+        CHECK(!load(forge(40, 30, 0, 1, 0, img, pngOf(cv::Mat(1, 1, CV_8UC1, cv::Scalar(255))))) && e.contains("Masque"));   // masque 1 × 1 : lu hors limites par le compositeur
+        auto act = load(forge(40, 30, 999, 2, 0, img, QByteArray()));
+        CHECK(act && act->activeIndex() == 1);
+        CHECK(!load(forge(100000, 30, 0, 1, 0, img, QByteArray())) && e.contains("hors limites"));
+        CHECK(!load(forge(40000, 40000, 0, 1, 0, img, QByteArray())) && e.contains("hors limites"));                         // 1,6 gigapixel
+        CHECK(!load(forge(40000, 20000, 0, 1, 0, img, QByteArray())) && e.contains("Calque"));   // 800 Mpx déclarés, calque de 40 × 30 : refusé avant toute allocation
+        CHECK(!load(forge(40, 30, 0, 0, 0, img, QByteArray())));
+        CHECK(!load(forge(40, 30, 0, 1, 1000, img, QByteArray())) && e.contains("Calque"));
+        CHECK(!load(forge(40, 30, 0, 1, 0, pngOf(cv::Mat(30, 40, CV_16UC4, cv::Scalar::all(0))), QByteArray())));             // 16 bits : le moteur suppose 8 bits
+
+        // échec d'encodage d'un calque : erreur explicite, et la sauvegarde précédente reste intacte (QSaveFile)
+        const QString atomic = tmp.path() + "/atomique.pcl";
+        std::unique_ptr<Document> sv(Ops::makeDocument(QSize(40, 30), 0, Qt::white));
+        CHECK(ImageIO::save(sv.get(), atomic, &e));
+        sv->mutableLayers().push_back(Layer::create("illisible", cv::Mat()));   // imencode refuse une image vide
+        CHECK(!ImageIO::save(sv.get(), atomic, &e) && e.contains("illisible"));
+        auto kept = load(atomic);
+        CHECK(kept && kept->layers().size() == 1);
+        CHECK(QDir(tmp.path()).entryList({"atomique.pcl*"}, QDir::Files) == QStringList{"atomique.pcl"});   // pas de fichier temporaire abandonné
+    }
+    {   // fichiers de modèle forgés : le diagnostic s'arrête proprement
+        auto write = [&](const QString& name, const QByteArray& bytes) { QFile f(tmp.path() + "/" + name); f.open(QIODevice::WriteOnly); f.write(bytes); return f.fileName(); };
+        auto gguf = [](int nesting) {
+            QByteArray b;
+            QDataStream s(&b, QIODevice::WriteOnly);
+            s.setByteOrder(QDataStream::LittleEndian);
+            s.writeRawData("GGUF", 4);
+            s << quint32(3) << quint64(0) << quint64(1) << quint64(1);
+            s.writeRawData("k", 1);
+            s << quint32(9);                                                     // G_ARRAY
+            for (int i = 0; i < nesting; ++i) s << quint32(9) << quint64(1);       // tableau de tableau de tableau…
+            s << quint32(4) << quint64(3) << quint32(1) << quint32(2) << quint32(3);   // … de 3 entiers
+            return b;
+        };
+        const Sd::ModelDiagnostic flat = Sd::diagnoseModelFile(write("flat.gguf", gguf(0)));
+        CHECK(flat.structurallyValid && flat.metadata.join('\n').contains("tableau de 3"));
+        const Sd::ModelDiagnostic deep = Sd::diagnoseModelFile(write("deep.gguf", gguf(200000)));   // pile épuisée sans la limite de profondeur
+        CHECK(!deep.structurallyValid && deep.issues.join('\n').contains("« k »"));
+
+        QByteArray zip("PK\x03\x04", 4);
+        zip.append(300, '\0');
+        QByteArray tail;
+        QDataStream s(&tail, QIODevice::WriteOnly);
+        s.setByteOrder(QDataStream::LittleEndian);
+        const quint64 z64At = quint64(zip.size());
+        s.writeRawData("PK\x06\x06", 4); s << quint64(44) << quint16(45) << quint16(45) << quint32(0) << quint32(0)
+                                            << quint64(1) << quint64(1) << quint64(0x200) << quint64(0xFFFFFFFFFFFFFF00ull);   // cdOffset + cdSize déborde à 0x100
+        s.writeRawData("PK\x06\x07", 4); s << quint32(0) << z64At << quint32(1);
+        s.writeRawData("PK\x05\x06", 4); s << quint16(0) << quint16(0) << quint16(0xFFFF) << quint16(0xFFFF) << quint32(0xFFFFFFFF) << quint32(0xFFFFFFFF) << quint16(0);
+        const Sd::ModelDiagnostic z = Sd::diagnoseModelFile(write("wrap.ckpt", zip + tail));
+        CHECK(!z.structurallyValid && z.issues.join('\n').contains("dépasse la taille du fichier"));
+    }
 
     // --- interface : fenêtre principale + capture (document de démonstration multi-calques)
     MainWindow w;

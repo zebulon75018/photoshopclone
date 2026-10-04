@@ -6,7 +6,7 @@
 
 Document::Document(QSize size, QObject* parent) : QObject(parent), m_size(size) { rebuildComposite(); }
 
-QString Document::title() const { return path.isEmpty() ? QStringLiteral("Sans titre") : QFileInfo(path).fileName(); }
+QString Document::title() const { return path.isEmpty() ? tr("Sans titre") : QFileInfo(path).fileName(); }
 
 void Document::setActiveIndex(int i) {
     i = std::clamp(i, 0, std::max(0, int(m_layers.size()) - 1));
@@ -31,9 +31,9 @@ int Document::indexOf(const Layer* l) const {
 
 Layer::Ptr Document::editableLayer(QString* why) const {
     auto l = activeLayer();
-    if (!l) { if (why) *why = "Aucun calque actif."; return nullptr; }
-    if (!l->props.visible) { if (why) *why = "Le calque cible est masqué."; return nullptr; }
-    if (l->props.locked) { if (why) *why = "Le calque cible est verrouillé."; return nullptr; }
+    if (!l) { if (why) *why = tr("Aucun calque actif."); return nullptr; }
+    if (!l->props.visible) { if (why) *why = tr("Le calque cible est masqué."); return nullptr; }
+    if (l->props.locked) { if (why) *why = tr("Le calque cible est verrouillé."); return nullptr; }
     return l;
 }
 
@@ -85,7 +85,7 @@ void Document::applySelection(const cv::Mat& s) {
     emit selectionChanged();
 }
 
-void Document::reselect() { if (!m_lastSel.empty() && m_sel.empty()) setSelection(m_lastSel, "Resélectionner"); }
+void Document::reselect() { if (!m_lastSel.empty() && m_sel.empty()) setSelection(m_lastSel, tr("Resélectionner")); }
 
 // ------------------------------------------------------------------ historique
 void Document::applyStructure(const Structure& s) {

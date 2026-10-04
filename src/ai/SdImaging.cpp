@@ -4,6 +4,9 @@
 #include <opencv2/imgproc.hpp>
 #include <algorithm>
 #include <cmath>
+#include <QCoreApplication>
+
+namespace { struct Tr { Q_DECLARE_TR_FUNCTIONS(SdImaging) }; }   // traductions hors classes QObject (voir translations/)
 
 namespace Sd {
 
@@ -26,14 +29,14 @@ static cv::Mat resizeSmart(const cv::Mat& m, cv::Size to, int shrinkInterp = cv:
 
 bool planInpaint(const cv::Mat& source, const cv::Mat& selection, const InpaintPlanParams& p, InpaintPlan* out, QString* error) {
     auto fail = [&](const QString& m) { if (error) *error = m; return false; };
-    if (source.type() != CV_8UC4 || source.empty()) return fail("Image source invalide (BGRA attendu).");
-    if (selection.type() != CV_8UC1 || selection.size() != source.size()) return fail("Sélection invalide (taille différente de l'image).");
+    if (source.type() != CV_8UC4 || source.empty()) return fail(Tr::tr("Image source invalide (BGRA attendu)."));
+    if (selection.type() != CV_8UC1 || selection.size() != source.size()) return fail(Tr::tr("Sélection invalide (taille différente de l'image)."));
 
     cv::Mat bin;
     cv::threshold(selection, bin, 10, 255, cv::THRESH_BINARY);
     if (p.expand > 0) cv::dilate(bin, bin, cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * p.expand + 1, 2 * p.expand + 1)));
     const cv::Rect bb = cv::boundingRect(bin);
-    if (bb.empty()) return fail("La sélection est vide.");
+    if (bb.empty()) return fail(Tr::tr("La sélection est vide."));
 
     const int maxSide = std::max(bb.width, bb.height);
     const int wantSide = maxSide + 2 * int(std::lround(maxSide * std::clamp(p.contextPercent, 0, 300) / 100.0));

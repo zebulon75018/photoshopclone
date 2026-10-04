@@ -110,11 +110,11 @@ void MainWindow::buildDocks() {
     };
     m_color = new ColorPanel; m_swatches = new SwatchesPanel; m_histogram = new HistogramPanel;
     m_layers = new LayersPanel; m_history = new HistoryPanel;
-    auto* dColor = mk("Couleur", "dockColor", m_color);
-    auto* dSw = mk("Nuancier", "dockSwatches", m_swatches);
-    auto* dHist = mk("Histogramme", "dockHistogram", m_histogram);
-    auto* dLay = mk("Calques", "dockLayers", m_layers);
-    auto* dHis = mk("Historique", "dockHistory", m_history);
+    auto* dColor = mk(tr("Couleur"), "dockColor", m_color);
+    auto* dSw = mk(tr("Nuancier"), "dockSwatches", m_swatches);
+    auto* dHist = mk(tr("Histogramme"), "dockHistogram", m_histogram);
+    auto* dLay = mk(tr("Calques"), "dockLayers", m_layers);
+    auto* dHis = mk(tr("Historique"), "dockHistory", m_history);
     for (auto* d : {dColor, dHist, dLay}) addDockWidget(Qt::RightDockWidgetArea, d);
     tabifyDockWidget(dColor, dSw);
     tabifyDockWidget(dLay, dHis);
@@ -130,7 +130,7 @@ void MainWindow::buildStatusBar() {
     statusBar()->addPermanentWidget(m_sizeLabel);
     statusBar()->addPermanentWidget(m_posLabel);
     statusBar()->addPermanentWidget(m_zoomLabel);
-    statusBar()->showMessage("Ctrl+N : nouveau document • Ctrl+O : ouvrir • Espace : main • Alt+molette : zoom", 8000);
+    statusBar()->showMessage(tr("Ctrl+N : nouveau document • Ctrl+O : ouvrir • Espace : main • Alt+molette : zoom"), 8000);
 }
 
 void MainWindow::buildToolShortcuts() {
@@ -147,52 +147,52 @@ void MainWindow::buildToolShortcuts() {
 
 void MainWindow::buildMenus() {
     // ---------------------------------------------------------------- Fichier
-    QMenu* f = menuBar()->addMenu("&Fichier");
-    add(f, "Nouveau…", "Ctrl+N", [this] { newDocument(); });
-    add(f, "Ouvrir…", "Ctrl+O", [this] { openDialog(); });
-    m_recentMenu = f->addMenu("Ouvrir un fichier récent");
+    QMenu* f = menuBar()->addMenu(tr("&Fichier"));
+    add(f, tr("Nouveau…"), "Ctrl+N", [this] { newDocument(); });
+    add(f, tr("Ouvrir…"), "Ctrl+O", [this] { openDialog(); });
+    m_recentMenu = f->addMenu(tr("Ouvrir un fichier récent"));
     connect(m_recentMenu, &QMenu::aboutToShow, this, [this] {
         m_recentMenu->clear();
         for (const QString& p : QSettings("PhotoClone", "PhotoClone").value("recent").toStringList())
             m_recentMenu->addAction(QFileInfo(p).fileName(), this, [this, p] { openPath(p); });
-        if (m_recentMenu->isEmpty()) m_recentMenu->addAction("(vide)")->setEnabled(false);
+        if (m_recentMenu->isEmpty()) m_recentMenu->addAction(tr("(vide)"))->setEnabled(false);
     });
     f->addSeparator();
-    add(f, "Fermer", "Ctrl+W", [this] { if (m_tabs->count()) closeTab(m_tabs->currentIndex()); });
-    add(f, "Tout fermer", "Ctrl+Alt+W", [this] { while (m_tabs->count()) { int n = m_tabs->count(); closeTab(m_tabs->count() - 1); if (m_tabs->count() == n) break; } });
+    add(f, tr("Fermer"), "Ctrl+W", [this] { if (m_tabs->count()) closeTab(m_tabs->currentIndex()); });
+    add(f, tr("Tout fermer"), "Ctrl+Alt+W", [this] { while (m_tabs->count()) { int n = m_tabs->count(); closeTab(m_tabs->count() - 1); if (m_tabs->count() == n) break; } });
     f->addSeparator();
-    add(f, "Enregistrer", "Ctrl+S", onDoc([this](Document* d) { saveDoc(d, false); }));
-    add(f, "Enregistrer sous…", "Ctrl+Shift+S", onDoc([this](Document* d) { saveDoc(d, true); }));
-    add(f, "Exporter sous (image aplatie)…", "Ctrl+Alt+Shift+W", [this] { exportAs(); });
+    add(f, tr("Enregistrer"), "Ctrl+S", onDoc([this](Document* d) { saveDoc(d, false); }));
+    add(f, tr("Enregistrer sous…"), "Ctrl+Shift+S", onDoc([this](Document* d) { saveDoc(d, true); }));
+    add(f, tr("Exporter sous (image aplatie)…"), "Ctrl+Alt+Shift+W", [this] { exportAs(); });
     f->addSeparator();
-    add(f, "Quitter", "Ctrl+Q", [this] { close(); });
+    add(f, tr("Quitter"), "Ctrl+Q", [this] { close(); });
 
     // ---------------------------------------------------------------- Édition
-    QMenu* e = menuBar()->addMenu("&Édition");
-    add(e, "Annuler", "Ctrl+Z", onDoc([](Document* d) { d->undoStack()->undo(); }));
-    add(e, "Rétablir", "Ctrl+Shift+Z", onDoc([](Document* d) { d->undoStack()->redo(); }));
-    add(e, "Pas en arrière", "Ctrl+Alt+Z", onDoc([](Document* d) { d->undoStack()->undo(); }));
+    QMenu* e = menuBar()->addMenu(tr("&Édition"));
+    add(e, tr("Annuler"), "Ctrl+Z", onDoc([](Document* d) { d->undoStack()->undo(); }));
+    add(e, tr("Rétablir"), "Ctrl+Shift+Z", onDoc([](Document* d) { d->undoStack()->redo(); }));
+    add(e, tr("Pas en arrière"), "Ctrl+Alt+Z", onDoc([](Document* d) { d->undoStack()->undo(); }));
     e->addSeparator();
-    add(e, "Couper", "Ctrl+X", onDoc([](Document* d) { Ops::cut(d); }));
-    add(e, "Copier", "Ctrl+C", onDoc([](Document* d) { Ops::copy(d, false); }));
-    add(e, "Copier avec fusion", "Ctrl+Shift+C", onDoc([](Document* d) { Ops::copy(d, true); }));
-    add(e, "Coller", "Ctrl+V", [this] { doPaste(false); });
-    add(e, "Coller sur place", "Ctrl+Shift+V", [this] { doPaste(true); });
-    add(e, "Effacer", "Delete", onDoc([](Document* d) { Ops::clearSelection(d); }));
+    add(e, tr("Couper"), "Ctrl+X", onDoc([](Document* d) { Ops::cut(d); }));
+    add(e, tr("Copier"), "Ctrl+C", onDoc([](Document* d) { Ops::copy(d, false); }));
+    add(e, tr("Copier avec fusion"), "Ctrl+Shift+C", onDoc([](Document* d) { Ops::copy(d, true); }));
+    add(e, tr("Coller"), "Ctrl+V", [this] { doPaste(false); });
+    add(e, tr("Coller sur place"), "Ctrl+Shift+V", [this] { doPaste(true); });
+    add(e, tr("Effacer"), "Delete", onDoc([](Document* d) { Ops::clearSelection(d); }));
     e->addSeparator();
-    add(e, "Remplir avec la couleur de premier plan", "Alt+Backspace", onDoc([](Document* d) { Ops::fillSelection(d, WS().fg, "Remplir (premier plan)"); }));
-    add(e, "Remplir avec la couleur d'arrière-plan", "Ctrl+Backspace", onDoc([](Document* d) { Ops::fillSelection(d, WS().bg, "Remplir (arrière-plan)"); }));
-    add(e, "Remplissage d'après le contenu (comblement)…", "Shift+F5", [this] { runEffect("retouch.inpaint"); });
+    add(e, tr("Remplir avec la couleur de premier plan"), "Alt+Backspace", onDoc([](Document* d) { Ops::fillSelection(d, WS().fg, tr("Remplir (premier plan)")); }));
+    add(e, tr("Remplir avec la couleur d'arrière-plan"), "Ctrl+Backspace", onDoc([](Document* d) { Ops::fillSelection(d, WS().bg, tr("Remplir (arrière-plan)")); }));
+    add(e, tr("Remplissage d'après le contenu (comblement)…"), "Shift+F5", [this] { runEffect("retouch.inpaint"); });
     e->addSeparator();
-    add(e, "Transformation manuelle", "Ctrl+T", [this] { startTransform(); });
-    QMenu* tr = e->addMenu("Transformation du calque");
-    add(tr, "Miroir horizontal", "", onDoc([](Document* d) { Ops::flipLayer(d, true); }));
-    add(tr, "Miroir vertical", "", onDoc([](Document* d) { Ops::flipLayer(d, false); }));
+    add(e, tr("Transformation manuelle"), "Ctrl+T", [this] { startTransform(); });
+    QMenu* lt = e->addMenu(tr("Transformation du calque"));
+    add(lt, tr("Miroir horizontal"), "", onDoc([](Document* d) { Ops::flipLayer(d, true); }));
+    add(lt, tr("Miroir vertical"), "", onDoc([](Document* d) { Ops::flipLayer(d, false); }));
 
     // ---------------------------------------------------------------- Image
-    QMenu* im = menuBar()->addMenu("&Image");
+    QMenu* im = menuBar()->addMenu(tr("&Image"));
     auto& reg = EffectRegistry::instance();
-    QMenu* adj = im->addMenu("Réglages");
+    QMenu* adj = im->addMenu(tr("Réglages"));
     static const QMap<QString, QString> adjKeys = {
         {"adjust.levels", "Ctrl+L"}, {"adjust.curves", "Ctrl+M"}, {"adjust.huesat", "Ctrl+U"}, {"adjust.colorbalance", "Ctrl+B"},
         {"adjust.bw", "Ctrl+Alt+Shift+B"}, {"adjust.invert", "Ctrl+I"}, {"adjust.desaturate", "Ctrl+Shift+U"}, {"adjust.autotone", "Ctrl+Shift+L"},
@@ -201,70 +201,70 @@ void MainWindow::buildMenus() {
     for (const EffectPtr& ef : reg.all()) {
         if (!ef->id.startsWith("adjust.")) continue;
         QMenu* target = adj;
-        if (ef->category == "Auto") { if (!autoMenu) { adj->addSeparator(); autoMenu = adj; } }
+        if (ef->id.startsWith("adjust.auto")) { if (!autoMenu) { adj->addSeparator(); autoMenu = adj; } }
         QString id = ef->id;
         add(target, ef->name, adjKeys.value(id), [this, id] { runEffect(id); });
     }
     im->addSeparator();
-    add(im, "Taille de l'image…", "Ctrl+Alt+I", onDoc([this](Document* d) { ImageSizeDialog dlg(this, d->size()); if (dlg.exec() == QDialog::Accepted) Ops::resizeImage(d, dlg.newSize(), dlg.interpolation()); }));
-    add(im, "Taille de la zone de travail…", "Ctrl+Alt+C", onDoc([this](Document* d) { CanvasSizeDialog dlg(this, d->size()); if (dlg.exec() == QDialog::Accepted) Ops::resizeCanvas(d, dlg.newSize(), dlg.anchor()); }));
-    QMenu* rot = im->addMenu("Rotation de la zone de travail");
+    add(im, tr("Taille de l'image…"), "Ctrl+Alt+I", onDoc([this](Document* d) { ImageSizeDialog dlg(this, d->size()); if (dlg.exec() == QDialog::Accepted) Ops::resizeImage(d, dlg.newSize(), dlg.interpolation()); }));
+    add(im, tr("Taille de la zone de travail…"), "Ctrl+Alt+C", onDoc([this](Document* d) { CanvasSizeDialog dlg(this, d->size()); if (dlg.exec() == QDialog::Accepted) Ops::resizeCanvas(d, dlg.newSize(), dlg.anchor()); }));
+    QMenu* rot = im->addMenu(tr("Rotation de la zone de travail"));
     add(rot, "180°", "", onDoc([](Document* d) { Ops::rotateImage(d, 180); }));
-    add(rot, "90° horaire", "", onDoc([](Document* d) { Ops::rotateImage(d, 90); }));
-    add(rot, "90° anti-horaire", "", onDoc([](Document* d) { Ops::rotateImage(d, 270); }));
+    add(rot, tr("90° horaire"), "", onDoc([](Document* d) { Ops::rotateImage(d, 90); }));
+    add(rot, tr("90° anti-horaire"), "", onDoc([](Document* d) { Ops::rotateImage(d, 270); }));
     rot->addSeparator();
-    add(rot, "Miroir horizontal", "", onDoc([](Document* d) { Ops::flipImage(d, true); }));
-    add(rot, "Miroir vertical", "", onDoc([](Document* d) { Ops::flipImage(d, false); }));
-    add(im, "Recadrer selon la sélection", "", onDoc([](Document* d) {
+    add(rot, tr("Miroir horizontal"), "", onDoc([](Document* d) { Ops::flipImage(d, true); }));
+    add(rot, tr("Miroir vertical"), "", onDoc([](Document* d) { Ops::flipImage(d, false); }));
+    add(im, tr("Recadrer selon la sélection"), "", onDoc([](Document* d) {
         if (d->hasSelection()) Ops::cropTo(d, mu::toQt(Sel::bounds(d->selection())));
-        else WS().message("Aucune sélection : utilisez l'outil Recadrage (C).");
+        else WS().message(tr("Aucune sélection : utilisez l'outil Recadrage (C)."));
     }));
 
     // ---------------------------------------------------------------- Calque
-    QMenu* l = menuBar()->addMenu("&Calque");
-    add(l, "Nouveau calque", "Ctrl+Shift+N", onDoc([](Document* d) { Ops::addLayer(d); }));
-    add(l, "Calque par copier / Dupliquer", "Ctrl+J", onDoc([](Document* d) { Ops::layerViaCopy(d, false); }));
-    add(l, "Calque par couper", "Ctrl+Shift+J", onDoc([](Document* d) { Ops::layerViaCopy(d, true); }));
-    add(l, "Supprimer le calque", "", onDoc([](Document* d) { Ops::deleteLayer(d); }));
+    QMenu* l = menuBar()->addMenu(tr("&Calque"));
+    add(l, tr("Nouveau calque"), "Ctrl+Shift+N", onDoc([](Document* d) { Ops::addLayer(d); }));
+    add(l, tr("Calque par copier / Dupliquer"), "Ctrl+J", onDoc([](Document* d) { Ops::layerViaCopy(d, false); }));
+    add(l, tr("Calque par couper"), "Ctrl+Shift+J", onDoc([](Document* d) { Ops::layerViaCopy(d, true); }));
+    add(l, tr("Supprimer le calque"), "", onDoc([](Document* d) { Ops::deleteLayer(d); }));
     l->addSeparator();
-    QMenu* mk = l->addMenu("Masque de fusion");
-    add(mk, "Tout faire apparaître / selon la sélection", "", onDoc([](Document* d) { Ops::addMask(d, false); }));
-    add(mk, "Tout masquer", "", onDoc([](Document* d) { Ops::addMask(d, true); }));
-    add(mk, "Appliquer le masque", "", onDoc([](Document* d) { Ops::deleteMask(d, true); }));
-    add(mk, "Supprimer le masque", "", onDoc([](Document* d) { Ops::deleteMask(d, false); }));
-    add(l, "Pixelliser le texte", "", onDoc([](Document* d) { Ops::rasterizeText(d); }));
+    QMenu* mk = l->addMenu(tr("Masque de fusion"));
+    add(mk, tr("Tout faire apparaître / selon la sélection"), "", onDoc([](Document* d) { Ops::addMask(d, false); }));
+    add(mk, tr("Tout masquer"), "", onDoc([](Document* d) { Ops::addMask(d, true); }));
+    add(mk, tr("Appliquer le masque"), "", onDoc([](Document* d) { Ops::deleteMask(d, true); }));
+    add(mk, tr("Supprimer le masque"), "", onDoc([](Document* d) { Ops::deleteMask(d, false); }));
+    add(l, tr("Pixelliser le texte"), "", onDoc([](Document* d) { Ops::rasterizeText(d); }));
     l->addSeparator();
-    QMenu* ar = l->addMenu("Disposition");
-    add(ar, "Premier plan", "Ctrl+Shift+]", onDoc([](Document* d) { Ops::moveLayerToEnd(d, true); }));
-    add(ar, "Avancer", "Ctrl+]", onDoc([](Document* d) { Ops::moveLayer(d, 1); }));
-    add(ar, "Reculer", "Ctrl+[", onDoc([](Document* d) { Ops::moveLayer(d, -1); }));
-    add(ar, "Arrière-plan", "Ctrl+Shift+[", onDoc([](Document* d) { Ops::moveLayerToEnd(d, false); }));
+    QMenu* ar = l->addMenu(tr("Disposition"));
+    add(ar, tr("Premier plan"), "Ctrl+Shift+]", onDoc([](Document* d) { Ops::moveLayerToEnd(d, true); }));
+    add(ar, tr("Avancer"), "Ctrl+]", onDoc([](Document* d) { Ops::moveLayer(d, 1); }));
+    add(ar, tr("Reculer"), "Ctrl+[", onDoc([](Document* d) { Ops::moveLayer(d, -1); }));
+    add(ar, tr("Arrière-plan"), "Ctrl+Shift+[", onDoc([](Document* d) { Ops::moveLayerToEnd(d, false); }));
     l->addSeparator();
-    add(l, "Fusionner vers le bas", "Ctrl+E", onDoc([](Document* d) { Ops::mergeDown(d); }));
-    add(l, "Fusionner les calques visibles", "Ctrl+Shift+E", onDoc([](Document* d) { Ops::mergeVisible(d); }));
-    add(l, "Aplatir l'image", "", onDoc([](Document* d) { Ops::flatten(d); }));
+    add(l, tr("Fusionner vers le bas"), "Ctrl+E", onDoc([](Document* d) { Ops::mergeDown(d); }));
+    add(l, tr("Fusionner les calques visibles"), "Ctrl+Shift+E", onDoc([](Document* d) { Ops::mergeVisible(d); }));
+    add(l, tr("Aplatir l'image"), "", onDoc([](Document* d) { Ops::flatten(d); }));
 
     // ---------------------------------------------------------------- Sélection
-    QMenu* s = menuBar()->addMenu("&Sélection");
-    add(s, "Tout sélectionner", "Ctrl+A", onDoc([](Document* d) { Ops::selectAll(d); }));
-    add(s, "Désélectionner", "Ctrl+D", onDoc([](Document* d) { Ops::deselect(d); }));
-    add(s, "Resélectionner", "Ctrl+Shift+D", onDoc([](Document* d) { d->reselect(); }));
-    add(s, "Intervertir la sélection", "Ctrl+Shift+I", onDoc([](Document* d) { Ops::invertSelection(d); }));
-    add(s, "Transformer la sélection (agrandir / pivoter)", "", [this] {
+    QMenu* s = menuBar()->addMenu(tr("&Sélection"));
+    add(s, tr("Tout sélectionner"), "Ctrl+A", onDoc([](Document* d) { Ops::selectAll(d); }));
+    add(s, tr("Désélectionner"), "Ctrl+D", onDoc([](Document* d) { Ops::deselect(d); }));
+    add(s, tr("Resélectionner"), "Ctrl+Shift+D", onDoc([](Document* d) { d->reselect(); }));
+    add(s, tr("Intervertir la sélection"), "Ctrl+Shift+I", onDoc([](Document* d) { Ops::invertSelection(d); }));
+    add(s, tr("Transformer la sélection (agrandir / pivoter)"), "", [this] {
         auto* tm = WS().tools(); Tool* t = tm->byId("sel_transform");
         if (tm->current() == t) t->activate(); else tm->select(t);
     });
     s->addSeparator();
-    QMenu* mod = s->addMenu("Modifier");
-    add(mod, "Contour progressif…", "Shift+F6", [this] { modifySelectionPrompt(0, "Contour progressif", "Rayon (px) :", 5, 250); });
-    add(mod, "Agrandir…", "", [this] { modifySelectionPrompt(1, "Agrandir la sélection", "De (px) :", 5, 500); });
-    add(mod, "Contracter…", "", [this] { modifySelectionPrompt(2, "Contracter la sélection", "De (px) :", 5, 500); });
-    add(mod, "Lisser…", "", [this] { modifySelectionPrompt(3, "Lisser la sélection", "Rayon (px) :", 5, 100); });
+    QMenu* mod = s->addMenu(tr("Modifier"));
+    add(mod, tr("Contour progressif…"), "Shift+F6", [this] { modifySelectionPrompt(0, tr("Contour progressif"), tr("Rayon (px) :"), 5, 250); });
+    add(mod, tr("Agrandir…"), "", [this] { modifySelectionPrompt(1, tr("Agrandir la sélection"), tr("De (px) :"), 5, 500); });
+    add(mod, tr("Contracter…"), "", [this] { modifySelectionPrompt(2, tr("Contracter la sélection"), tr("De (px) :"), 5, 500); });
+    add(mod, tr("Lisser…"), "", [this] { modifySelectionPrompt(3, tr("Lisser la sélection"), tr("Rayon (px) :"), 5, 100); });
 
     // ---------------------------------------------------------------- Filtre
-    QMenu* fl = menuBar()->addMenu("Fi&ltre");
-    add(fl, "Dernier filtre", "Ctrl+F", [this] { repeatLastFilter(); });
-    add(fl, "Dernier filtre (avec options)…", "Ctrl+Alt+F", [this] { if (m_lastEffect) runEffect(m_lastEffect->id, true); });
+    QMenu* fl = menuBar()->addMenu(tr("Fi&ltre"));
+    add(fl, tr("Dernier filtre"), "Ctrl+F", [this] { repeatLastFilter(); });
+    add(fl, tr("Dernier filtre (avec options)…"), "Ctrl+Alt+F", [this] { if (m_lastEffect) runEffect(m_lastEffect->id, true); });
     fl->addSeparator();
     for (const QString& cat : reg.categories("filter")) {
         QMenu* sub = fl->addMenu(cat);
@@ -273,51 +273,51 @@ void MainWindow::buildMenus() {
     }
 
     // ---------------------------------------------------------------- IA (vision.cpp)
-    QMenu* ai = menuBar()->addMenu("&IA");
-    add(ai, "Réglages des modèles…", "", [this] { AIModelsDialog dlg(this); dlg.exec(); }, false);
+    QMenu* ai = menuBar()->addMenu(tr("&IA"));
+    add(ai, tr("Réglages des modèles…"), "", [this] { AIModelsDialog dlg(this); dlg.exec(); }, false);
     ai->addSeparator();
-    add(ai, "Supprimer l'arrière-plan…", "Ctrl+Alt+K", [this] { cmdRemoveBackground(); });
-    add(ai, "Sélection par IA (MobileSAM) : cliquer / cadrer un objet", "", [this] {
+    add(ai, tr("Supprimer l'arrière-plan…"), "Ctrl+Alt+K", [this] { cmdRemoveBackground(); });
+    add(ai, tr("Sélection par IA (MobileSAM) : cliquer / cadrer un objet"), "", [this] {
         WS().tools()->select(WS().tools()->byId("sam"));
-        if (!AIModels::isConfigured(AIArchitecture::Sam)) statusBar()->showMessage("MobileSAM : aucun modèle configuré (menu IA > Réglages des modèles…).", 6000);
+        if (!AIModels::isConfigured(AIArchitecture::Sam)) statusBar()->showMessage(tr("MobileSAM : aucun modèle configuré (menu IA > Réglages des modèles…)."), 6000);
     }, false);
-    add(ai, "Remplissage IA (MI-GAN)…", "", [this] { if (ensureAIModel(AIArchitecture::MiGan)) runEffect("retouch.inpaint", false, {{"algo", 2}}); });
-    add(ai, "Carte de profondeur (Depth-Anything)…", "", [this] { cmdDepth(); });
-    add(ai, "Agrandissement IA (Real-ESRGAN)…", "", [this] { cmdUpscale(); });
+    add(ai, tr("Remplissage IA (MI-GAN)…"), "", [this] { if (ensureAIModel(AIArchitecture::MiGan)) runEffect("retouch.inpaint", false, {{"algo", 2}}); });
+    add(ai, tr("Carte de profondeur (Depth-Anything)…"), "", [this] { cmdDepth(); });
+    add(ai, tr("Agrandissement IA (Real-ESRGAN)…"), "", [this] { cmdUpscale(); });
     ai->addSeparator();
-    add(ai, "Générer une image (Stable Diffusion)…", "Ctrl+Alt+G", [this] { cmdSdGenerate(); });
-    add(ai, "Inpainting sur la sélection (Stable Diffusion)…", "Ctrl+Alt+P", [this] { cmdSdInpaint(); });
-    add(ai, "Réglages de Stable Diffusion…", "", [this] { SdSettingsDialog dlg(this); dlg.exec(); }, false);
+    add(ai, tr("Générer une image (Stable Diffusion)…"), "Ctrl+Alt+G", [this] { cmdSdGenerate(); });
+    add(ai, tr("Inpainting sur la sélection (Stable Diffusion)…"), "Ctrl+Alt+P", [this] { cmdSdInpaint(); });
+    add(ai, tr("Réglages de Stable Diffusion…"), "", [this] { SdSettingsDialog dlg(this); dlg.exec(); }, false);
     ai->addSeparator();
-    add(ai, "Libérer la mémoire des modèles IA", "", [this] {
+    add(ai, tr("Libérer la mémoire des modèles IA"), "", [this] {
         Sd::unloadModel();
         AIBackend::clearCache();
-        statusBar()->showMessage("Modèles IA déchargés de la mémoire.", 4000);
+        statusBar()->showMessage(tr("Modèles IA déchargés de la mémoire."), 4000);
     }, false);
 
     // ---------------------------------------------------------------- Affichage
-    QMenu* v = menuBar()->addMenu("&Affichage");
-    auto* zi = add(v, "Zoom avant", "", [this] { if (view()) view()->zoomIn(); }, false);
+    QMenu* v = menuBar()->addMenu(tr("&Affichage"));
+    auto* zi = add(v, tr("Zoom avant"), "", [this] { if (view()) view()->zoomIn(); }, false);
     zi->setShortcuts({QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")});
-    add(v, "Zoom arrière", "Ctrl+-", [this] { if (view()) view()->zoomOut(); }, false);
-    add(v, "Ajuster à l'écran", "Ctrl+0", [this] { if (view()) view()->zoomFit(); }, false);
-    add(v, "Zoom 100 %", "Ctrl+1", [this] { if (view()) view()->zoom100(); }, false);
+    add(v, tr("Zoom arrière"), "Ctrl+-", [this] { if (view()) view()->zoomOut(); }, false);
+    add(v, tr("Ajuster à l'écran"), "Ctrl+0", [this] { if (view()) view()->zoomFit(); }, false);
+    add(v, tr("Zoom 100 %"), "Ctrl+1", [this] { if (view()) view()->zoom100(); }, false);
     v->addSeparator();
-    auto* grid = add(v, "Grille", "Ctrl+'", [this] { if (view()) { view()->showGrid = !view()->showGrid; view()->refresh(); } }, false);
+    auto* grid = add(v, tr("Grille"), "Ctrl+'", [this] { if (view()) { view()->showGrid = !view()->showGrid; view()->refresh(); } }, false);
     grid->setCheckable(true);
-    auto* edges = add(v, "Bords de la sélection", "Ctrl+H", [this] { if (view()) { view()->showEdges = !view()->showEdges; view()->refresh(); } }, false);
+    auto* edges = add(v, tr("Bords de la sélection"), "Ctrl+H", [this] { if (view()) { view()->showEdges = !view()->showEdges; view()->refresh(); } }, false);
     edges->setCheckable(true); edges->setChecked(true);
     v->addSeparator();
-    add(v, "Plein écran", "F", [this] { isFullScreen() ? showNormal() : showFullScreen(); }, false);
-    add(v, "Afficher / masquer les panneaux", "Tab", [this] { togglePanels(); }, false);
+    add(v, tr("Plein écran"), "F", [this] { isFullScreen() ? showNormal() : showFullScreen(); }, false);
+    add(v, tr("Afficher / masquer les panneaux"), "Tab", [this] { togglePanels(); }, false);
 
     // ---------------------------------------------------------------- Fenêtre / Aide
-    QMenu* w = menuBar()->addMenu("Fe&nêtre");
+    QMenu* w = menuBar()->addMenu(tr("Fe&nêtre"));
     for (QDockWidget* d : m_docks) w->addAction(d->toggleViewAction());
-    QMenu* h = menuBar()->addMenu("&Aide");
-    add(h, "Raccourcis clavier", "F1", [this] { showShortcuts(); }, false);
-    add(h, "À propos", "", [this] {
-        QMessageBox::about(this, "À propos", "<b>PhotoClone</b> — éditeur d'images Qt5 / OpenCV inspiré de Photoshop.<br>Calques, masques, sélections, filtres, réglages, texte, historique.");
+    QMenu* h = menuBar()->addMenu(tr("&Aide"));
+    add(h, tr("Raccourcis clavier"), "F1", [this] { showShortcuts(); }, false);
+    add(h, tr("À propos"), "", [this] {
+        QMessageBox::about(this, tr("À propos"), tr("<b>PhotoClone</b> — éditeur d'images Qt5 / OpenCV inspiré de Photoshop.<br>Calques, masques, sélections, filtres, réglages, texte, historique."));
     });
 }
 
@@ -331,11 +331,11 @@ CanvasView* MainWindow::addDocument(Document* d) {
         if (v != view()) return;
         if (!inside) { m_posLabel->setText(""); return; }
         auto px = d->composite().at<cv::Vec4b>(p.y(), p.x());
-        m_posLabel->setText(QString("X %1  Y %2   RVB %3, %4, %5").arg(p.x()).arg(p.y()).arg(px[2]).arg(px[1]).arg(px[0]));
+        m_posLabel->setText(tr("X %1  Y %2   RVB %3, %4, %5").arg(p.x()).arg(p.y()).arg(px[2]).arg(px[1]).arg(px[0]));
     });
     connect(d, &Document::selectionChanged, this, [this, d] {
         if (d != doc()) return;
-        if (d->hasSelection()) { cv::Rect r = Sel::bounds(d->selection()); m_sizeLabel->setText(QString("Sél. %1 × %2").arg(r.width).arg(r.height)); }
+        if (d->hasSelection()) { cv::Rect r = Sel::bounds(d->selection()); m_sizeLabel->setText(tr("Sél. %1 × %2").arg(r.width).arg(r.height)); }
         else m_sizeLabel->setText(QString("%1 × %2 px").arg(d->size().width()).arg(d->size().height()));
     });
     connect(d, &Document::sizeChanged, this, [this, d] { if (d == doc()) m_sizeLabel->setText(QString("%1 × %2 px").arg(d->size().width()).arg(d->size().height())); });
@@ -371,7 +371,7 @@ bool MainWindow::maybeSave(CanvasView* v) {
     Document* d = v->document();
     if (!d->isModified()) return true;
     m_tabs->setCurrentWidget(v);
-    auto r = QMessageBox::question(this, "Document modifié", QString("Enregistrer les modifications de « %1 » ?").arg(d->title()),
+    auto r = QMessageBox::question(this, tr("Document modifié"), tr("Enregistrer les modifications de « %1 » ?").arg(d->title()),
                                    QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
     if (r == QMessageBox::Cancel) return false;
     return r == QMessageBox::Discard || saveDoc(d, false);
@@ -396,7 +396,7 @@ void MainWindow::newDocument() {
 }
 
 void MainWindow::openDialog() {
-    QStringList files = QFileDialog::getOpenFileNames(this, "Ouvrir", QString(), ImageIO::openFilter());
+    QStringList files = QFileDialog::getOpenFileNames(this, tr("Ouvrir"), QString(), ImageIO::openFilter());
     for (const QString& f : files) openPath(f);
 }
 
@@ -406,7 +406,7 @@ void MainWindow::openPath(const QString& path) {
             if (!v->document()->path.isEmpty() && QFileInfo(v->document()->path) == QFileInfo(path)) { m_tabs->setCurrentIndex(i); return; }
     QString err;
     Document* d = ImageIO::open(path, &err);
-    if (!d) { QMessageBox::warning(this, "Ouverture impossible", QString("%1\n\n%2").arg(path, err)); return; }
+    if (!d) { QMessageBox::warning(this, tr("Ouverture impossible"), QString("%1\n\n%2").arg(path, err)); return; }
     addDocument(d);
     addRecent(path);
 }
@@ -424,18 +424,18 @@ bool MainWindow::saveDoc(Document* d, bool saveAs) {
     bool multi = d->layers().size() > 1;
     if (saveAs || path.isEmpty() || (!ImageIO::isNativeProject(path) && multi)) {
         QString sel;
-        QString base = path.isEmpty() ? QDir::homePath() + "/" + "sans_titre" : QFileInfo(path).absolutePath() + "/" + QFileInfo(path).completeBaseName();
-        path = QFileDialog::getSaveFileName(this, "Enregistrer sous", base + (multi ? ".pcl" : ".png"), ImageIO::saveFilter(), &sel);
+        QString base = path.isEmpty() ? QDir::homePath() + "/" + tr("sans_titre") : QFileInfo(path).absolutePath() + "/" + QFileInfo(path).completeBaseName();
+        path = QFileDialog::getSaveFileName(this, tr("Enregistrer sous"), base + (multi ? ".pcl" : ".png"), ImageIO::saveFilter(), &sel);
         if (path.isEmpty()) return false;
         if (QFileInfo(path).suffix().isEmpty()) path += sel.contains("PNG") ? ".png" : sel.contains("JPEG") ? ".jpg" : sel.contains("TIFF") ? ".tif" : sel.contains("WebP") ? ".webp" : sel.contains("BMP") ? ".bmp" : ".pcl";
     }
     int q = 92;
     QString ext = QFileInfo(path).suffix().toLower();
-    if (ext == "jpg" || ext == "jpeg" || ext == "webp") { bool ok; q = Dlg::getInt(this, "Qualité", "Qualité (1-100) :", 92, 1, 100, &ok); if (!ok) return false; }
+    if (ext == "jpg" || ext == "jpeg" || ext == "webp") { bool ok; q = Dlg::getInt(this, tr("Qualité"), tr("Qualité (1-100) :"), 92, 1, 100, &ok); if (!ok) return false; }
     QString err;
-    if (!ImageIO::save(d, path, &err, q)) { QMessageBox::warning(this, "Échec de l'enregistrement", err); return false; }
+    if (!ImageIO::save(d, path, &err, q)) { QMessageBox::warning(this, tr("Échec de l'enregistrement"), err); return false; }
     if (!ImageIO::isNativeProject(path)) {
-        if (multi) statusBar()->showMessage("Image aplatie exportée. Utilisez le format .pcl pour conserver les calques.", 6000);
+        if (multi) statusBar()->showMessage(tr("Image aplatie exportée. Utilisez le format .pcl pour conserver les calques."), 6000);
         else { d->path = path; d->undoStack()->setClean(); }
     }
     addRecent(path);
@@ -447,11 +447,11 @@ void MainWindow::exportAs() {
     Document* d = doc();
     if (!d) return;
     QString sel;
-    QString path = QFileDialog::getSaveFileName(this, "Exporter sous", QDir::homePath() + "/export.png", "PNG (*.png);;JPEG (*.jpg *.jpeg);;TIFF (*.tif);;WebP (*.webp);;BMP (*.bmp)", &sel);
+    QString path = QFileDialog::getSaveFileName(this, tr("Exporter sous"), QDir::homePath() + "/export.png", "PNG (*.png);;JPEG (*.jpg *.jpeg);;TIFF (*.tif);;WebP (*.webp);;BMP (*.bmp)", &sel);
     if (path.isEmpty()) return;
     int q = 92; QString err;
-    if (!ImageIO::save(d, path, &err, q)) QMessageBox::warning(this, "Échec de l'export", err);
-    else statusBar()->showMessage("Exporté : " + path, 5000);
+    if (!ImageIO::save(d, path, &err, q)) QMessageBox::warning(this, tr("Échec de l'export"), err);
+    else statusBar()->showMessage(tr("Exporté : %1").arg(path), 5000);
 }
 
 // ------------------------------------------------------------------------------------------ actions
@@ -462,7 +462,7 @@ void MainWindow::runEffect(const QString& id, bool reuse, const QVariantMap& ove
     if (!e) return;
     QString why;
     if (!d->editableLayer(&why)) { statusBar()->showMessage(why, 4000); return; }
-    if (e->requiresSelection && !d->hasSelection()) { statusBar()->showMessage(e->name.section(QStringLiteral("…"), 0, 0) + " : sélectionnez d'abord une zone.", 4000); return; }
+    if (e->requiresSelection && !d->hasSelection()) { statusBar()->showMessage(tr("%1 : sélectionnez d'abord une zone.").arg(e->name.section(QStringLiteral("…"), 0, 0)), 4000); return; }
     Params p = (reuse && m_lastEffect == e) ? m_lastParams : e->defaults();
     if (id == "filter.clouds" && !reuse) { p.set("fg", WS().fg); p.set("bg", WS().bg); }
     for (auto it = overrides.cbegin(); it != overrides.cend(); ++it) p.set(it.key(), it.value());
@@ -481,18 +481,18 @@ void MainWindow::runEffect(const QString& id, bool reuse, const QVariantMap& ove
 bool MainWindow::ensureAIModel(AIArchitecture a) {
     const AIArchitectureInfo& inf = AIModels::info(a);
     if (!AIModels::libraryAvailable()) {
-        QMessageBox::information(this, "Fonction IA indisponible",
-            "Cette version de PhotoClone a été compilée sans la bibliothèque vision.cpp.\nVoir depend/visioncpp/BUILD_FROM_SOURCE.md.");
+        QMessageBox::information(this, tr("Fonction IA indisponible"),
+            tr("Cette version de PhotoClone a été compilée sans la bibliothèque vision.cpp.\nVoir depend/visioncpp/BUILD_FROM_SOURCE.md."));
         return false;
     }
     auto problem = [&]() -> QString {
-        if (!AIModels::isConfigured(a)) return "aucun modèle configuré";
+        if (!AIModels::isConfigured(a)) return tr("aucun modèle configuré");
         return AIBackend::validateModelFile(a, AIModels::modelPath(a));
     };
     QString why = problem();
     if (why.isEmpty()) return true;
-    auto r = QMessageBox::question(this, "Modèle IA requis",
-        QString("%1 — %2 : %3.\n\nOuvrir les réglages des modèles maintenant ?").arg(inf.name, inf.task, why));
+    auto r = QMessageBox::question(this, tr("Modèle IA requis"),
+        tr("%1 — %2 : %3.\n\nOuvrir les réglages des modèles maintenant ?").arg(inf.name, inf.task, why));
     if (r == QMessageBox::Yes) { AIModelsDialog dlg(this); dlg.exec(); }
     return problem().isEmpty();
 }
@@ -509,7 +509,7 @@ void MainWindow::cmdRemoveBackground() {
     QApplication::setOverrideCursor(Qt::WaitCursor);
     bool ok = Ops::removeBackground(d, dlg.rawMask(), dlg.params(), &err, &warn);
     QApplication::restoreOverrideCursor();
-    if (!ok) QMessageBox::warning(this, "Suppression de l'arrière-plan", err);
+    if (!ok) QMessageBox::warning(this, tr("Suppression de l'arrière-plan"), err);
     else if (!warn.isEmpty()) statusBar()->showMessage(warn, 8000);
 }
 
@@ -520,7 +520,7 @@ void MainWindow::cmdDepth() {
     DepthDialog dlg(d, this);
     if (dlg.exec() != QDialog::Accepted || !dlg.hasDepth()) return;
     QString err;
-    if (!Ops::applyDepth(d, dlg.rawDepth(), dlg.params(), &err)) QMessageBox::warning(this, "Carte de profondeur", err);
+    if (!Ops::applyDepth(d, dlg.rawDepth(), dlg.params(), &err)) QMessageBox::warning(this, tr("Carte de profondeur"), err);
 }
 
 void MainWindow::cmdUpscale() {
@@ -532,29 +532,29 @@ void MainWindow::cmdUpscale() {
     QString err;
     QApplication::setOverrideCursor(Qt::WaitCursor);
     bool ok = Ops::aiUpscale(d, dlg.params(), &err, [this](int i, int n) {
-        statusBar()->showMessage(QString("Agrandissement IA : calque %1 sur %2 (peut être long sur CPU)…").arg(i + 1).arg(n));
+        statusBar()->showMessage(tr("Agrandissement IA : calque %1 sur %2 (peut être long sur CPU)…").arg(i + 1).arg(n));
         QApplication::processEvents();
         return true;
     });
     QApplication::restoreOverrideCursor();
     statusBar()->clearMessage();
-    if (!ok) QMessageBox::warning(this, "Agrandissement IA", err);
+    if (!ok) QMessageBox::warning(this, tr("Agrandissement IA"), err);
     else if (view()) view()->zoomFit(true);
 }
 
 // ------------------------------------------------------------------------------------------ Stable Diffusion
 bool MainWindow::ensureSd() {
     if (!Sd::libraryCompiled()) {
-        QMessageBox::information(this, "Stable Diffusion indisponible",
-            "Cette version de PhotoClone a été compilée sans stable-diffusion.cpp.\nVoir depend/stablediffusioncpp/BUILD_FROM_SOURCE.md.");
+        QMessageBox::information(this, tr("Stable Diffusion indisponible"),
+            tr("Cette version de PhotoClone a été compilée sans stable-diffusion.cpp.\nVoir depend/stablediffusioncpp/BUILD_FROM_SOURCE.md."));
         return false;
     }
     QString libErr;
-    if (!Sd::libraryLoaded(&libErr)) { QMessageBox::warning(this, "Stable Diffusion indisponible", libErr); return false; }
+    if (!Sd::libraryLoaded(&libErr)) { QMessageBox::warning(this, tr("Stable Diffusion indisponible"), libErr); return false; }
     auto problem = [] { return Sd::validateConfig(Sd::loadConfig()); };
     QString why = problem();
     if (why.isEmpty()) return true;
-    auto r = QMessageBox::question(this, "Modèle Stable Diffusion requis", QString("%1\n\nOuvrir les réglages maintenant ?").arg(why));
+    auto r = QMessageBox::question(this, tr("Modèle Stable Diffusion requis"), tr("%1\n\nOuvrir les réglages maintenant ?").arg(why));
     if (r == QMessageBox::Yes) { SdSettingsDialog dlg(this); dlg.exec(); }
     return problem().isEmpty();
 }
@@ -568,7 +568,7 @@ void MainWindow::cmdSdGenerate() {
     if (img.empty()) return;
     if (!d) { addDocument(Ops::sdNewDocument(img, dlg.promptText())); return; }
     QString err;
-    if (!Ops::sdAddImage(d, img, dlg.placement(), dlg.promptText(), &err)) QMessageBox::warning(this, "Génération d'image", err);
+    if (!Ops::sdAddImage(d, img, dlg.placement(), dlg.promptText(), &err)) QMessageBox::warning(this, tr("Génération d'image"), err);
 }
 
 void MainWindow::cmdSdInpaint() {
@@ -576,14 +576,14 @@ void MainWindow::cmdSdInpaint() {
     if (!d) return;
     QString why;
     if (!d->editableLayer(&why)) { statusBar()->showMessage(why, 4000); return; }
-    if (!d->hasSelection()) { statusBar()->showMessage("Inpainting : sélectionnez d'abord la zone à régénérer.", 5000); return; }
+    if (!d->hasSelection()) { statusBar()->showMessage(tr("Inpainting : sélectionnez d'abord la zone à régénérer."), 5000); return; }
     if (!ensureSd()) return;
     SdInpaintDialog dlg(d, this);
     if (dlg.exec() != QDialog::Accepted) return;
     const cv::Mat gen = dlg.selectedImage();
     if (gen.empty()) return;
     QString err;
-    if (!Ops::sdApplyInpaint(d, dlg.plan(), gen, &err)) QMessageBox::warning(this, "Inpainting", err);
+    if (!Ops::sdApplyInpaint(d, dlg.plan(), gen, &err)) QMessageBox::warning(this, tr("Inpainting"), err);
 }
 
 void MainWindow::repeatLastFilter() {
@@ -596,7 +596,7 @@ void MainWindow::repeatLastFilter() {
 
 void MainWindow::doPaste(bool inPlace) {
     QImage img = QGuiApplication::clipboard()->image();
-    if (img.isNull()) { statusBar()->showMessage("Le presse-papiers ne contient pas d'image.", 3000); return; }
+    if (img.isNull()) { statusBar()->showMessage(tr("Le presse-papiers ne contient pas d'image."), 3000); return; }
     if (!doc()) addDocument(Ops::makeDocument(img.size(), 0, Qt::white));
     QPoint c = view() ? view()->viewCenterImage().toPoint() : QPoint(0, 0);
     if (Ops::paste(doc(), inPlace, c)) WS().tools()->select(WS().tools()->byId("move"));
@@ -612,7 +612,7 @@ void MainWindow::startTransform() {
 
 void MainWindow::modifySelectionPrompt(int kind, const QString& title, const QString& label, int def, int max) {
     Document* d = doc();
-    if (!d || !d->hasSelection()) { statusBar()->showMessage("Aucune sélection.", 3000); return; }
+    if (!d || !d->hasSelection()) { statusBar()->showMessage(tr("Aucune sélection."), 3000); return; }
     bool ok = false;
     int v = Dlg::getInt(this, title, label, def, 1, max, &ok);
     if (ok) Ops::modifySelection(d, kind, v);
@@ -626,8 +626,8 @@ void MainWindow::togglePanels() {
 }
 
 void MainWindow::showShortcuts() {
-    QMessageBox::information(this, "Raccourcis clavier",
-        "<table cellpadding=3>"
+    QMessageBox::information(this, tr("Raccourcis clavier"),
+        tr("<table cellpadding=3>"
         "<tr><td><b>V</b> Déplacement</td><td><b>M</b> Sélection (Maj+M : ellipse, puis transformation de la sélection)</td><td><b>L</b> Lasso (Maj+L)</td></tr>"
         "<tr><td><b>W</b> Baguette magique</td><td><b>C</b> Recadrage</td><td><b>I</b> Pipette</td></tr>"
         "<tr><td><b>B</b> Pinceau (Maj+B : crayon)</td><td><b>S</b> Tampon</td><td><b>E</b> Gomme</td></tr>"
@@ -641,7 +641,7 @@ void MainWindow::showShortcuts() {
         "<tr><td><b>Alt+Retour arr.</b> remplir PP</td><td><b>Ctrl+Retour arr.</b> remplir AP</td><td><b>Maj+F5</b> remplissage d'après le contenu</td></tr>"
         "<tr><td><b>Tab</b> panneaux</td><td><b>Ctrl+Alt+K</b> supprimer l'arrière-plan (IA)</td><td><b>Maj+W</b> sélection par IA (MobileSAM)</td></tr>"
         "<tr><td><b>Ctrl+Alt+G</b> générer une image (Stable Diffusion)</td><td><b>Ctrl+Alt+P</b> inpainting sur la sélection</td><td></td></tr>"
-        "</table>");
+        "</table>"));
 }
 
 // ------------------------------------------------------------------------------------------ événements fenêtre

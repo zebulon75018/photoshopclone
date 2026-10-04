@@ -9,7 +9,7 @@
 
 ColorSwatchWidget::ColorSwatchWidget(QWidget* parent) : QWidget(parent) {
     setFixedSize(46, 50);
-    setToolTip("Couleurs premier plan / arrière-plan\nX : permuter • D : par défaut");
+    setToolTip(tr("Couleurs premier plan / arrière-plan\nX : permuter • D : par défaut"));
     connect(&Workspace::instance(), &Workspace::colorsChanged, this, [this] { update(); });
 }
 
@@ -31,11 +31,11 @@ void ColorSwatchWidget::mousePressEvent(QMouseEvent* e) {
     auto& w = Workspace::instance();
     if (kSwap.contains(e->pos())) { w.swapColors(); return; }
     if (kDef.contains(e->pos())) { w.resetColors(); return; }
-    if (kFg.contains(e->pos())) { QColor c = Dlg::pickColor(w.fg, "Couleur de premier plan", this); if (c.isValid()) w.setFg(c); }
-    else if (kBg.contains(e->pos())) { QColor c = Dlg::pickColor(w.bg, "Couleur d'arrière-plan", this); if (c.isValid()) w.setBg(c); }
+    if (kFg.contains(e->pos())) { QColor c = Dlg::pickColor(w.fg, tr("Couleur de premier plan"), this); if (c.isValid()) w.setFg(c); }
+    else if (kBg.contains(e->pos())) { QColor c = Dlg::pickColor(w.bg, tr("Couleur d'arrière-plan"), this); if (c.isValid()) w.setBg(c); }
 }
 
-ToolBox::ToolBox(ToolManager* tm, QWidget* parent) : QToolBar("Outils", parent), m_tm(tm) {
+ToolBox::ToolBox(ToolManager* tm, QWidget* parent) : QToolBar(tr("Outils"), parent), m_tm(tm) {
     setObjectName("ToolBox");
     setOrientation(Qt::Vertical);
     setMovable(false);
@@ -69,6 +69,6 @@ void ToolBox::refresh() {
         Tool* a = groups[g].active();
         m_buttons[g]->setIcon(toolIcon(a->id()));
         m_buttons[g]->setChecked(groups[g].tools.contains(m_tm->current()));
-        m_buttons[g]->setToolTip(QString("%1\n(Maj+%2 : outil suivant du groupe)").arg(a->name(), groups[g].key));
+        m_buttons[g]->setToolTip(tr("%1\n(Maj+%2 : outil suivant du groupe)").arg(a->name(), groups[g].key));
     }
 }

@@ -20,9 +20,9 @@ QColor EyedropperTool::colorAt(Document* d, QPointF p, int size, bool merged) {
 }
 
 void EyedropperTool::buildOptions(OptionsBar& o) {
-    o.addCombo("Taille de l'échantillon :", {"Point", "Moyenne 3×3", "Moyenne 5×5", "Moyenne 11×11"}, &st().sampleSize);
-    o.addCheck("Tous les calques", &st().sampleAll);
-    o.addLabel("   Alt+clic : couleur d'arrière-plan");
+    o.addCombo(tr("Taille de l'échantillon :"), {tr("Point"), tr("Moyenne 3×3"), tr("Moyenne 5×5"), tr("Moyenne 11×11")}, &st().sampleSize);
+    o.addCheck(tr("Tous les calques"), &st().sampleAll);
+    o.addLabel(tr("   Alt+clic : couleur d'arrière-plan"));
 }
 
 void EyedropperTool::sample(const ToolEvent& e) {
@@ -38,8 +38,9 @@ QString PaintTool::id() const {
     return n[m_kind];
 }
 QString PaintTool::name() const {
-    static const char* n[] = {"Pinceau (B)", "Crayon (B)", "Gomme (E)", "Tampon de duplication (S)", "Goutte d'eau (R)", "Netteté (R)", "Doigt (R)", "Densité - (O)", "Densité + (O)"};
-    return n[m_kind];
+    static const char* n[] = {QT_TR_NOOP("Pinceau (B)"), QT_TR_NOOP("Crayon (B)"), QT_TR_NOOP("Gomme (E)"), QT_TR_NOOP("Tampon de duplication (S)"), QT_TR_NOOP("Goutte d'eau (R)"),
+                              QT_TR_NOOP("Netteté (R)"), QT_TR_NOOP("Doigt (R)"), QT_TR_NOOP("Densité - (O)"), QT_TR_NOOP("Densité + (O)")};
+    return tr(n[m_kind]);
 }
 
 BrushEngine::Params PaintTool::params() const {
@@ -61,17 +62,17 @@ BrushEngine::Params PaintTool::params() const {
 }
 
 void PaintTool::buildOptions(OptionsBar& o) {
-    o.addSpin("Taille :", &st().size, 1, 2000, " px");
-    if (m_kind != Pencil) o.addSpin("Dureté :", &st().hardness, 0, 100, " %");
+    o.addSpin(tr("Taille :"), &st().size, 1, 2000, " px");
+    if (m_kind != Pencil) o.addSpin(tr("Dureté :"), &st().hardness, 0, 100, " %");
     if (m_kind == Brush || m_kind == Pencil || m_kind == Eraser || m_kind == Clone) {
-        o.addSpin("Opacité :", &st().opacity, 1, 100, " %");
-        o.addSpin("Flux :", &st().flow, 1, 100, " %");
+        o.addSpin(tr("Opacité :"), &st().opacity, 1, 100, " %");
+        o.addSpin(tr("Flux :"), &st().flow, 1, 100, " %");
     }
-    o.addSpin("Espacement :", &st().spacing, 1, 200, " %");
-    if (m_kind == Blur || m_kind == Sharpen || m_kind == Smudge || m_kind == Dodge || m_kind == Burn) o.addSpin("Force :", &st().strength, 1, 100, " %");
-    if (m_kind == Dodge || m_kind == Burn) o.addCombo("Plage :", {"Ombres", "Tons moyens", "Hautes lumières"}, &st().range);
-    if (m_kind == Clone) { o.addCheck("Aligné", &st().aligned); o.addLabel("  Alt+clic : définir la source"); }
-    if (m_kind == Brush || m_kind == Pencil) o.addLabel("  Alt : pipette • Maj+clic : ligne droite • [ ] : taille • { } : dureté");
+    o.addSpin(tr("Espacement :"), &st().spacing, 1, 200, " %");
+    if (m_kind == Blur || m_kind == Sharpen || m_kind == Smudge || m_kind == Dodge || m_kind == Burn) o.addSpin(tr("Force :"), &st().strength, 1, 100, " %");
+    if (m_kind == Dodge || m_kind == Burn) o.addCombo(tr("Plage :"), {tr("Ombres"), tr("Tons moyens"), tr("Hautes lumières")}, &st().range);
+    if (m_kind == Clone) { o.addCheck(tr("Aligné"), &st().aligned); o.addLabel(tr("  Alt+clic : définir la source")); }
+    if (m_kind == Brush || m_kind == Pencil) o.addLabel(tr("  Alt : pipette • Maj+clic : ligne droite • [ ] : taille • { } : dureté"));
 }
 
 void PaintTool::press(const ToolEvent& e) {
@@ -86,10 +87,10 @@ void PaintTool::press(const ToolEvent& e) {
     auto l = e.doc->editableLayer(&why);
     if (!l) { ws().message(why); return; }
     Document::Target t = (l->editingMask && l->hasMask()) ? Document::Target::Mask : Document::Target::Pixels;
-    if (t == Document::Target::Pixels && l->isText()) { Ops::rasterizeText(e.doc); ws().message("Calque de texte pixellisé."); }
+    if (t == Document::Target::Pixels && l->isText()) { Ops::rasterizeText(e.doc); ws().message(tr("Calque de texte pixellisé.")); }
     BrushEngine::Params p = params();
     if (m_kind == Clone) {
-        if (!m_hasSrc) { ws().message("Tampon : Alt+clic pour définir le point source."); return; }
+        if (!m_hasSrc) { ws().message(tr("Tampon : Alt+clic pour définir le point source.")); return; }
         if (!m_offsetSet || !st().aligned) { m_cloneOffset = m_cloneSrc - QPoint(int(e.pos.x()), int(e.pos.y())); m_offsetSet = true; }
         p.cloneOffset = m_cloneOffset;
     }
@@ -145,11 +146,11 @@ void PaintTool::paintOverlay(QPainter& p, CanvasView* v) {
 
 // ============================================================================ Pot de peinture
 void BucketTool::buildOptions(OptionsBar& o) {
-    o.addSpin("Tolérance :", &st().tolerance, 0, 255);
-    o.addSpin("Opacité :", &st().opacity, 1, 100, " %");
-    o.addCheck("Lissage", &st().antiAlias);
-    o.addCheck("Contigus", &st().contiguous);
-    o.addCheck("Tous les calques", &st().sampleAll);
+    o.addSpin(tr("Tolérance :"), &st().tolerance, 0, 255);
+    o.addSpin(tr("Opacité :"), &st().opacity, 1, 100, " %");
+    o.addCheck(tr("Lissage"), &st().antiAlias);
+    o.addCheck(tr("Contigus"), &st().contiguous);
+    o.addCheck(tr("Tous les calques"), &st().sampleAll);
 }
 
 void BucketTool::press(const ToolEvent& e) {
@@ -159,15 +160,15 @@ void BucketTool::press(const ToolEvent& e) {
     const cv::Mat& src = st().sampleAll ? e.doc->composite() : l->image;
     cv::Mat m = Sel::magicWand(src, cv::Point(int(std::floor(e.pos.x())), int(std::floor(e.pos.y()))), st().tolerance, st().contiguous, st().antiAlias);
     if (m.empty()) return;
-    Ops::fillMask(e.doc, m, ws().fg, st().opacity / 100.0, "Pot de peinture");
+    Ops::fillMask(e.doc, m, ws().fg, st().opacity / 100.0, tr("Pot de peinture"));
 }
 
 // ============================================================================ Dégradé
 void GradientTool::buildOptions(OptionsBar& o) {
-    o.addCombo("Type :", {"Linéaire", "Radial", "Angulaire", "Réfléchi", "Losange"}, &st().gradientType);
-    o.addCombo("Couleurs :", {"Premier plan → Arrière-plan", "Premier plan → Transparent"}, &st().gradientColors);
-    o.addCheck("Inverser", &st().gradientReverse);
-    o.addSpin("Opacité :", &st().opacity, 1, 100, " %");
+    o.addCombo(tr("Type :"), {tr("Linéaire"), tr("Radial"), tr("Angulaire"), tr("Réfléchi"), tr("Losange")}, &st().gradientType);
+    o.addCombo(tr("Couleurs :"), {tr("Premier plan → Arrière-plan"), tr("Premier plan → Transparent")}, &st().gradientColors);
+    o.addCheck(tr("Inverser"), &st().gradientReverse);
+    o.addSpin(tr("Opacité :"), &st().opacity, 1, 100, " %");
 }
 
 void GradientTool::paintOverlay(QPainter& p, CanvasView* v) {
@@ -212,7 +213,7 @@ void GradientTool::release(const ToolEvent& e) {
         }
     }
     double op = st().opacity / 100.0;
-    e.doc->doLayerChange("Dégradé", l, [&](Layer& L) {
+    e.doc->doLayerChange(tr("Dégradé"), l, [&](Layer& L) {
         cv::Mat out = L.image.clone();
         Blend::over(out, grad, region.tl(), region, BlendMode::Normal, float(op), cv::Mat(), e.doc->selection());
         L.image = out; L.text.reset();

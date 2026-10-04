@@ -49,7 +49,7 @@ QPushButton* button(const QString& text) {
 
 // ============================================================================================ diagnostic d'un fichier de modèle
 ModelDiagnosticDialog::ModelDiagnosticDialog(const QString& path, QWidget* parent) : QDialog(parent), m_path(path) {
-    setWindowTitle("Diagnostic du fichier de modèle");
+    setWindowTitle(tr("Diagnostic du fichier de modèle"));
     setModal(true);
     auto* root = new QVBoxLayout(this);
     auto* pathLbl = new QLabel(path);
@@ -66,9 +66,9 @@ ModelDiagnosticDialog::ModelDiagnosticDialog(const QString& path, QWidget* paren
     root->addWidget(m_text);
 
     auto* row = new QHBoxLayout;
-    m_shaButton = button("Calculer aussi le SHA-256 (relit tout le fichier, peut prendre du temps)");
-    auto* copyBtn = button("Copier le rapport");
-    auto* closeBtn = button("Fermer");
+    m_shaButton = button(tr("Calculer aussi le SHA-256 (relit tout le fichier, peut prendre du temps)"));
+    auto* copyBtn = button(tr("Copier le rapport"));
+    auto* closeBtn = button(tr("Fermer"));
     closeBtn->setDefault(true);
     row->addWidget(m_shaButton);
     row->addStretch();
@@ -83,7 +83,7 @@ ModelDiagnosticDialog::ModelDiagnosticDialog(const QString& path, QWidget* paren
 }
 
 void ModelDiagnosticDialog::refresh(bool withSha256) {
-    if (withSha256) { m_shaButton->setEnabled(false); m_shaButton->setText("Calcul du SHA-256 en cours…"); QApplication::setOverrideCursor(Qt::WaitCursor); }
+    if (withSha256) { m_shaButton->setEnabled(false); m_shaButton->setText(tr("Calcul du SHA-256 en cours…")); QApplication::setOverrideCursor(Qt::WaitCursor); }
     const Sd::ModelDiagnostic diag = Sd::diagnoseModelFile(m_path, withSha256);
     if (withSha256) QApplication::restoreOverrideCursor();
     m_text->setPlainText(Sd::formatDiagnostic(diag));
@@ -95,12 +95,12 @@ SdSettingsDialog::Row SdSettingsDialog::makeRow(QGridLayout* grid, int r, const 
     auto* edit = new QLineEdit(value);
     edit->setMinimumWidth(380);
     if (!tooltip.isEmpty()) edit->setToolTip(tooltip);
-    auto* browse = button("Parcourir…");
+    auto* browse = button(tr("Parcourir…"));
     auto* diag = new QToolButton;
     diag->setIcon(QApplication::style()->standardIcon(QStyle::SP_MessageBoxInformation));
-    diag->setToolTip(QString("Diagnostiquer ce fichier (%1) : format détecté, cohérence, aperçu du contenu, architecture probable.").arg(label));
+    diag->setToolTip(tr("Diagnostiquer ce fichier (%1) : format détecté, cohérence, aperçu du contenu, architecture probable.").arg(label));
     diag->setAutoRaise(false);
-    auto* clear = button("Effacer");
+    auto* clear = button(tr("Effacer"));
     auto* status = new QLabel;
     status->setObjectName("SdRowStatus_" + key);
     status->setWordWrap(true);
@@ -109,13 +109,13 @@ SdSettingsDialog::Row SdSettingsDialog::makeRow(QGridLayout* grid, int r, const 
     m_rows.push_back(row);
     const size_t idx = m_rows.size() - 1;
     connect(browse, &QPushButton::clicked, this, [this, idx] {
-        QString p = QFileDialog::getOpenFileName(this, "Choisir un fichier de modèle", m_rows[idx].edit->text(),
-                                                 "Modèles (*.safetensors *.gguf *.ckpt *.pt);;Tous les fichiers (*)");
+        QString p = QFileDialog::getOpenFileName(this, tr("Choisir un fichier de modèle"), m_rows[idx].edit->text(),
+                                                 tr("Modèles (*.safetensors *.gguf *.ckpt *.pt);;Tous les fichiers (*)"));
         if (!p.isEmpty()) { m_rows[idx].edit->setText(p); refreshRow(m_rows[idx]); refreshGlobalStatus(); }
     });
     connect(diag, &QToolButton::clicked, this, [this, idx] {
         const QString p = m_rows[idx].edit->text().trimmed();
-        if (p.isEmpty()) { setStatusStyle(m_rows[idx].status, "Renseignez d'abord un chemin de fichier.", true); return; }
+        if (p.isEmpty()) { setStatusStyle(m_rows[idx].status, tr("Renseignez d'abord un chemin de fichier."), true); return; }
         ModelDiagnosticDialog(p, this).exec();
     });
     connect(clear, &QPushButton::clicked, this, [this, idx] { m_rows[idx].edit->clear(); refreshRow(m_rows[idx]); refreshGlobalStatus(); });
@@ -131,7 +131,7 @@ SdSettingsDialog::Row SdSettingsDialog::makeRow(QGridLayout* grid, int r, const 
 }
 
 SdSettingsDialog::SdSettingsDialog(QWidget* parent) : MovableDialog(parent) {
-    setWindowTitle("Réglages de Stable Diffusion");
+    setWindowTitle(tr("Réglages de Stable Diffusion"));
     const Sd::Config cfg = Sd::loadConfig();
     auto* root = new QVBoxLayout(this);
 
@@ -139,15 +139,15 @@ SdSettingsDialog::SdSettingsDialog(QWidget* parent) : MovableDialog(parent) {
     m_libStatus->setWordWrap(true);
     QString libErr;
     auto* intro = new QLabel(
-        "Stable Diffusion (via <a href=\"https://github.com/leejet/stable-diffusion.cpp\">stable-diffusion.cpp</a>) a besoin de fichiers de "
+        tr("Stable Diffusion (via <a href=\"https://github.com/leejet/stable-diffusion.cpp\">stable-diffusion.cpp</a>) a besoin de fichiers de "
         "modèle (plusieurs Go) qui ne sont pas fournis. Deux façons de les renseigner, sous deux onglets ci-dessous. Pour l'inpainting, "
-        "tout modèle convient ; un modèle « inpainting » dédié donne souvent de meilleurs raccords. Tout le calcul est local (CPU).");
+        "tout modèle convient ; un modèle « inpainting » dédié donne souvent de meilleurs raccords. Tout le calcul est local (CPU)."));
     intro->setWordWrap(true);
     intro->setTextFormat(Qt::RichText);
     intro->setOpenExternalLinks(true);
     root->addWidget(intro);
-    if (Sd::libraryLoaded(&libErr)) setStatusStyle(m_libStatus, "Bibliothèque : chargée (" + Sd::libraryPath() + ")", false);
-    else setStatusStyle(m_libStatus, "⚠ Bibliothèque indisponible : " + libErr, true);
+    if (Sd::libraryLoaded(&libErr)) setStatusStyle(m_libStatus, tr("Bibliothèque : chargée (%1)").arg(Sd::libraryPath()), false);
+    else setStatusStyle(m_libStatus, tr("⚠ Bibliothèque indisponible : %1").arg(libErr), true);
     root->addWidget(m_libStatus);
 
     auto* tabs = new QTabWidget;
@@ -157,45 +157,45 @@ SdSettingsDialog::SdSettingsDialog(QWidget* parent) : MovableDialog(parent) {
     auto* tab1 = new QWidget;
     auto* v1 = new QVBoxLayout(tab1);
     auto* intro1 = new QLabel(
-        "<b>Cas le plus courant.</b> Un seul fichier contient tout : le modèle de diffusion (UNet), le VAE et l'encodeur de texte. "
+        tr("<b>Cas le plus courant.</b> Un seul fichier contient tout : le modèle de diffusion (UNet), le VAE et l'encodeur de texte. "
         "C'est le format de la plupart des modèles SD 1.x, SD 2.x et SDXL distribués en un seul <code>.safetensors</code>, "
         "<code>.gguf</code> ou <code>.ckpt</code>. Si vous avez un seul fichier de plusieurs Go, c'est probablement celui-ci : "
-        "remplissez uniquement le champ ci-dessous, laissez l'autre onglet vide.");
+        "remplissez uniquement le champ ci-dessous, laissez l'autre onglet vide."));
     intro1->setWordWrap(true);
     intro1->setTextFormat(Qt::RichText);
     v1->addWidget(intro1);
     auto* grid1 = new QGridLayout;
     grid1->setColumnStretch(1, 1);
-    makeRow(grid1, 0, "model", "Checkpoint complet", cfg.model,
-            "Le fichier principal du modèle (SD 1.x / 2.x / SDXL… en un seul fichier).");
-    makeRow(grid1, 2, "vae", "VAE personnalisé (optionnel)", cfg.vae,
-            "Remplace le VAE intégré au checkpoint, si besoin (ex. un VAE corrigé pour SD 1.5). Laissez vide pour utiliser celui du checkpoint.");
+    makeRow(grid1, 0, "model", tr("Checkpoint complet"), cfg.model,
+            tr("Le fichier principal du modèle (SD 1.x / 2.x / SDXL… en un seul fichier)."));
+    makeRow(grid1, 2, "vae", tr("VAE personnalisé (optionnel)"), cfg.vae,
+            tr("Remplace le VAE intégré au checkpoint, si besoin (ex. un VAE corrigé pour SD 1.5). Laissez vide pour utiliser celui du checkpoint."));
     v1->addLayout(grid1);
     v1->addStretch();
-    tabs->addTab(tab1, "Checkpoint complet");
+    tabs->addTab(tab1, tr("Checkpoint complet"));
 
     // ---- onglet 2 : modèle de diffusion + encodeurs séparés (avancé) ----------------------------------------------
     auto* tab2 = new QWidget;
     auto* v2 = new QVBoxLayout(tab2);
     auto* intro2 = new QLabel(
-        "<b>Cas avancé.</b> Pour les modèles distribués sans encodeur de texte intégré : <b>Flux</b> (CLIP-L + T5-XXL), "
+        tr("<b>Cas avancé.</b> Pour les modèles distribués sans encodeur de texte intégré : <b>Flux</b> (CLIP-L + T5-XXL), "
         "<b>SD3</b> (CLIP-L + CLIP-G + T5-XXL), ou certains SDXL réencodés. Remplissez le modèle de diffusion ET les "
         "encodeurs que son architecture nécessite (pas forcément les trois). N'utilisez cet onglet <b>que si</b> l'onglet "
         "« Checkpoint complet » ne convient pas pour votre modèle — le bouton de diagnostic (icône ⓘ) à côté de chaque "
-        "champ vous dira ce qu'il détecte dans un fichier donné.");
+        "champ vous dira ce qu'il détecte dans un fichier donné."));
     intro2->setWordWrap(true);
     intro2->setTextFormat(Qt::RichText);
     v2->addWidget(intro2);
     auto* grid2 = new QGridLayout;
     grid2->setColumnStretch(1, 1);
-    makeRow(grid2, 0, "diffusionModel", "Modèle de diffusion seul", cfg.diffusionModel,
-            "L'UNet (ou les blocs de diffusion Flux/SD3) sans encodeur de texte ni VAE.");
-    makeRow(grid2, 2, "clipL", "Encodeur CLIP-L", cfg.clipL, "Requis par la plupart des architectures (SD 1.x/2.x/SDXL/Flux/SD3).");
-    makeRow(grid2, 4, "clipG", "Encodeur CLIP-G", cfg.clipG, "Requis par SDXL et SD3 uniquement. Laissez vide pour Flux.");
-    makeRow(grid2, 6, "t5xxl", "Encodeur T5-XXL", cfg.t5xxl, "Requis par Flux et SD3. Laissez vide pour SD 1.x/2.x/SDXL classique.");
+    makeRow(grid2, 0, "diffusionModel", tr("Modèle de diffusion seul"), cfg.diffusionModel,
+            tr("L'UNet (ou les blocs de diffusion Flux/SD3) sans encodeur de texte ni VAE."));
+    makeRow(grid2, 2, "clipL", tr("Encodeur CLIP-L"), cfg.clipL, tr("Requis par la plupart des architectures (SD 1.x/2.x/SDXL/Flux/SD3)."));
+    makeRow(grid2, 4, "clipG", tr("Encodeur CLIP-G"), cfg.clipG, tr("Requis par SDXL et SD3 uniquement. Laissez vide pour Flux."));
+    makeRow(grid2, 6, "t5xxl", tr("Encodeur T5-XXL"), cfg.t5xxl, tr("Requis par Flux et SD3. Laissez vide pour SD 1.x/2.x/SDXL classique."));
     v2->addLayout(grid2);
     v2->addStretch();
-    tabs->addTab(tab2, "Modèle de diffusion + encodeurs");
+    tabs->addTab(tab2, tr("Modèle de diffusion + encodeurs"));
 
     // ---- onglet 3 : performances -----------------------------------------------------------------------------------
     auto* tab3 = new QWidget;
@@ -203,24 +203,24 @@ SdSettingsDialog::SdSettingsDialog(QWidget* parent) : MovableDialog(parent) {
     auto* af = new QFormLayout;
     m_threads = new QSpinBox;
     m_threads->setRange(0, 128);
-    m_threads->setSpecialValueText("Automatique (cœurs physiques)");
+    m_threads->setSpecialValueText(tr("Automatique (cœurs physiques)"));
     m_threads->setValue(cfg.threads);
-    m_flash = new QCheckBox("Attention flash (moins de mémoire, plus rapide sur certains processeurs)");
+    m_flash = new QCheckBox(tr("Attention flash (moins de mémoire, plus rapide sur certains processeurs)"));
     m_flash->setChecked(cfg.flashAttention);
-    m_mmap = new QCheckBox("Projection mémoire des poids (chargement plus rapide, moins de RAM)");
+    m_mmap = new QCheckBox(tr("Projection mémoire des poids (chargement plus rapide, moins de RAM)"));
     m_mmap->setChecked(cfg.mmap);
-    m_unload = new QCheckBox("Libérer la mémoire du modèle après chaque génération (plus lent, économise plusieurs Go)");
+    m_unload = new QCheckBox(tr("Libérer la mémoire du modèle après chaque génération (plus lent, économise plusieurs Go)"));
     m_unload->setChecked(cfg.unloadAfterUse);
-    af->addRow("Fils de calcul :", m_threads);
+    af->addRow(tr("Fils de calcul :"), m_threads);
     af->addRow(m_flash);
     af->addRow(m_mmap);
     af->addRow(m_unload);
     v3->addLayout(af);
-    auto* free = button("Libérer la mémoire maintenant");
+    auto* free = button(tr("Libérer la mémoire maintenant"));
     connect(free, &QPushButton::clicked, this, [] { Sd::unloadModel(); });
     v3->addWidget(free, 0, Qt::AlignLeft);
     v3->addStretch();
-    tabs->addTab(tab3, "Performances");
+    tabs->addTab(tab3, tr("Performances"));
 
     m_globalStatus = new QLabel;
     m_globalStatus->setObjectName("SdGlobalStatus");
@@ -231,7 +231,7 @@ SdSettingsDialog::SdSettingsDialog(QWidget* parent) : MovableDialog(parent) {
 
     auto* row = new QHBoxLayout;
     auto* ok = button("OK");
-    auto* cancel = button("Annuler");
+    auto* cancel = button(tr("Annuler"));
     connect(ok, &QPushButton::clicked, this, &QDialog::accept);
     connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
     row->addStretch();
@@ -246,7 +246,7 @@ void SdSettingsDialog::refreshRow(Row& row) {
     const QString p = row.edit->text().trimmed();
     if (p.isEmpty()) { setStatusStyle(row.status, "", false); return; }
     if (QString bad = Sd::validateModelFile(p); !bad.isEmpty()) setStatusStyle(row.status, "✗ " + bad, true);
-    else setStatusStyle(row.status, QString("✓ Fichier plausible (%1). Cliquez sur ⓘ pour un diagnostic détaillé.").arg(mu::humanSize(QFileInfo(p).size())), false);
+    else setStatusStyle(row.status, tr("✓ Fichier plausible (%1). Cliquez sur ⓘ pour un diagnostic détaillé.").arg(mu::humanSize(QFileInfo(p).size())), false);
 }
 
 void SdSettingsDialog::refreshGlobalStatus() {
@@ -256,16 +256,16 @@ void SdSettingsDialog::refreshGlobalStatus() {
     };
     const bool hasCkpt = !val("model").isEmpty();
     const bool hasDiff = !val("diffusionModel").isEmpty();
-    if (!hasCkpt && !hasDiff) { setStatusStyle(m_globalStatus, "⚠ Aucun modèle configuré : remplissez au moins « Checkpoint complet » (onglet 1).", true); return; }
-    if (hasCkpt && !hasDiff) { setStatusStyle(m_globalStatus, "✓ Configuration prête : checkpoint complet (onglet 1).", false); return; }
+    if (!hasCkpt && !hasDiff) { setStatusStyle(m_globalStatus, tr("⚠ Aucun modèle configuré : remplissez au moins « Checkpoint complet » (onglet 1)."), true); return; }
+    if (hasCkpt && !hasDiff) { setStatusStyle(m_globalStatus, tr("✓ Configuration prête : checkpoint complet (onglet 1)."), false); return; }
     if (hasDiff && !hasCkpt) {
         const bool clipL = !val("clipL").isEmpty(), clipG = !val("clipG").isEmpty(), t5 = !val("t5xxl").isEmpty();
-        if (!clipL && !clipG && !t5) { setStatusStyle(m_globalStatus, "⚠ Modèle de diffusion renseigné mais aucun encodeur de texte : la génération échouera. Complétez l'onglet 2.", true); return; }
-        setStatusStyle(m_globalStatus, "✓ Configuration prête : modèle de diffusion + encodeur(s) (onglet 2).", false);
+        if (!clipL && !clipG && !t5) { setStatusStyle(m_globalStatus, tr("⚠ Modèle de diffusion renseigné mais aucun encodeur de texte : la génération échouera. Complétez l'onglet 2."), true); return; }
+        setStatusStyle(m_globalStatus, tr("✓ Configuration prête : modèle de diffusion + encodeur(s) (onglet 2)."), false);
         return;
     }
-    setStatusStyle(m_globalStatus, "✓ Configuration prête : checkpoint complet ET modèle de diffusion renseignés — usage avancé, "
-                                    "le modèle de diffusion remplacera l'UNet du checkpoint. Si ce n'est pas voulu, videz l'un des deux.", false);
+    setStatusStyle(m_globalStatus, tr("✓ Configuration prête : checkpoint complet ET modèle de diffusion renseignés — usage avancé, "
+                                    "le modèle de diffusion remplacera l'UNet du checkpoint. Si ce n'est pas voulu, videz l'un des deux."), false);
 }
 
 void SdSettingsDialog::accept() {
@@ -295,40 +295,40 @@ SdDialogBase::SdDialogBase(const QString& title, QWidget* parent) : MovableDialo
     auto* iv = new QVBoxLayout(inputs);
     iv->setContentsMargins(0, 0, 0, 0);
     iv->setSpacing(4);
-    iv->addWidget(new QLabel("Prompt (ce que l'on veut voir) :"));
+    iv->addWidget(new QLabel(tr("Prompt (ce que l'on veut voir) :")));
     m_prompt = new QPlainTextEdit;
     m_prompt->setFixedHeight(56);
-    m_prompt->setPlaceholderText("ex. un chat roux endormi sur un rebord de fenêtre, lumière douce, très détaillé");
+    m_prompt->setPlaceholderText(tr("ex. un chat roux endormi sur un rebord de fenêtre, lumière douce, très détaillé"));
     iv->addWidget(m_prompt);
-    iv->addWidget(new QLabel("Prompt négatif (ce que l'on veut éviter) :"));
+    iv->addWidget(new QLabel(tr("Prompt négatif (ce que l'on veut éviter) :")));
     m_negative = new QPlainTextEdit;
     m_negative->setFixedHeight(40);
-    m_negative->setPlaceholderText("ex. flou, basse qualité, déformé, texte, filigrane");
+    m_negative->setPlaceholderText(tr("ex. flou, basse qualité, déformé, texte, filigrane"));
     iv->addWidget(m_negative);
 
-    auto* spec = new QGroupBox("Image");
+    auto* spec = new QGroupBox(tr("Image"));
     m_specific = new QFormLayout(spec);
     m_specific->setContentsMargins(8, 6, 8, 6);
     m_specific->setVerticalSpacing(4);
     iv->addWidget(spec);
 
-    auto* gen = new QGroupBox("Génération");
+    auto* gen = new QGroupBox(tr("Génération"));
     auto* gg = new QGridLayout(gen);
     gg->setContentsMargins(8, 6, 8, 6);
     gg->setVerticalSpacing(4);
     m_steps = new QSpinBox; m_steps->setRange(1, 150); m_steps->setValue(20);
-    m_steps->setToolTip("Plus d'étapes = plus de détail mais plus lent (20–30 suffisent en général ; 4–8 pour les modèles « turbo/LCM »).");
+    m_steps->setToolTip(tr("Plus d'étapes = plus de détail mais plus lent (20–30 suffisent en général ; 4–8 pour les modèles « turbo/LCM »)."));
     m_cfg = new QDoubleSpinBox; m_cfg->setRange(1.0, 30.0); m_cfg->setSingleStep(0.5); m_cfg->setValue(7.0);
-    m_cfg->setToolTip("Fidélité au prompt (CFG). ~7 pour SD 1.x/XL ; 1–2 pour les modèles « turbo/LCM ».");
+    m_cfg->setToolTip(tr("Fidélité au prompt (CFG). ~7 pour SD 1.x/XL ; 1–2 pour les modèles « turbo/LCM »."));
     m_batch = new QSpinBox; m_batch->setRange(1, 8); m_batch->setValue(1);
-    m_batch->setToolTip("Nombre de variantes générées d'un coup (graines consécutives). Multiplie le temps de calcul.");
-    m_randomSeed = new QCheckBox("Aléatoire");
+    m_batch->setToolTip(tr("Nombre de variantes générées d'un coup (graines consécutives). Multiplie le temps de calcul."));
+    m_randomSeed = new QCheckBox(tr("Aléatoire"));
     m_randomSeed->setChecked(true);
     m_seed = new QSpinBox; m_seed->setRange(0, 2147483647); m_seed->setEnabled(false);
-    gg->addWidget(new QLabel("Étapes :"), 0, 0);  gg->addWidget(m_steps, 0, 1);
-    gg->addWidget(new QLabel("CFG :"), 0, 2);     gg->addWidget(m_cfg, 0, 3);
-    gg->addWidget(new QLabel("Variantes :"), 1, 0); gg->addWidget(m_batch, 1, 1);
-    gg->addWidget(new QLabel("Graine :"), 1, 2);
+    gg->addWidget(new QLabel(tr("Étapes :")), 0, 0);  gg->addWidget(m_steps, 0, 1);
+    gg->addWidget(new QLabel(tr("CFG :")), 0, 2);     gg->addWidget(m_cfg, 0, 3);
+    gg->addWidget(new QLabel(tr("Variantes :")), 1, 0); gg->addWidget(m_batch, 1, 1);
+    gg->addWidget(new QLabel(tr("Graine :")), 1, 2);
     auto* seedRow = new QHBoxLayout;
     seedRow->addWidget(m_randomSeed);
     seedRow->addWidget(m_seed, 1);
@@ -337,7 +337,7 @@ SdDialogBase::SdDialogBase(const QString& title, QWidget* parent) : MovableDialo
     gg->setColumnStretch(3, 2);
 
     auto* advToggle = new QToolButton;
-    advToggle->setText("Options avancées ▸");
+    advToggle->setText(tr("Options avancées ▸"));
     advToggle->setCheckable(true);
     advToggle->setAutoRaise(true);
     auto* adv = new QWidget;
@@ -345,19 +345,19 @@ SdDialogBase::SdDialogBase(const QString& title, QWidget* parent) : MovableDialo
     af->setContentsMargins(0, 0, 0, 0);
     af->setVerticalSpacing(4);
     m_sampler = new QComboBox;
-    m_sampler->addItem("Automatique (défaut du modèle)", "");
+    m_sampler->addItem(tr("Automatique (défaut du modèle)"), "");
     for (const QString& n : Sd::samplerNames()) m_sampler->addItem(n, n);
     m_scheduler = new QComboBox;
-    m_scheduler->addItem("Automatique (défaut du modèle)", "");
+    m_scheduler->addItem(tr("Automatique (défaut du modèle)"), "");
     for (const QString& n : Sd::schedulerNames()) m_scheduler->addItem(n, n);
-    m_tiling = new QCheckBox("Décodage VAE par tuiles (économise la mémoire)");
-    af->addRow("Échantillonneur :", m_sampler);
-    af->addRow("Ordonnanceur :", m_scheduler);
+    m_tiling = new QCheckBox(tr("Décodage VAE par tuiles (économise la mémoire)"));
+    af->addRow(tr("Échantillonneur :"), m_sampler);
+    af->addRow(tr("Ordonnanceur :"), m_scheduler);
     af->addRow(m_tiling);
     adv->hide();
     gg->addWidget(advToggle, 2, 0, 1, 4, Qt::AlignLeft);
     gg->addWidget(adv, 3, 0, 1, 4);
-    connect(advToggle, &QToolButton::toggled, this, [advToggle, adv](bool on) { adv->setVisible(on); advToggle->setText(on ? "Options avancées ▾" : "Options avancées ▸"); });
+    connect(advToggle, &QToolButton::toggled, this, [advToggle, adv](bool on) { adv->setVisible(on); advToggle->setText(on ? tr("Options avancées ▾") : tr("Options avancées ▸")); });
     iv->addWidget(gen);
     iv->addStretch(1);
     connect(m_randomSeed, &QCheckBox::toggled, this, [this](bool on) { m_seed->setEnabled(!on); });
@@ -375,11 +375,11 @@ SdDialogBase::SdDialogBase(const QString& title, QWidget* parent) : MovableDialo
     m_list->setMovement(QListWidget::Static);
     m_list->setResizeMode(QListWidget::Adjust);
     m_list->setWrapping(false);
-    m_list->setToolTip("Variantes générées : cliquez pour choisir celle à conserver.");
-    m_rightCol->addWidget(new QLabel("Résultats :"));
+    m_list->setToolTip(tr("Variantes générées : cliquez pour choisir celle à conserver."));
+    m_rightCol->addWidget(new QLabel(tr("Résultats :")));
     m_rightCol->addWidget(m_list);
     m_logToggle = new QToolButton;
-    m_logToggle->setText("Journal ▸");
+    m_logToggle->setText(tr("Journal ▸"));
     m_logToggle->setCheckable(true);
     m_logToggle->setAutoRaise(true);
     m_log = new QPlainTextEdit;
@@ -390,7 +390,7 @@ SdDialogBase::SdDialogBase(const QString& title, QWidget* parent) : MovableDialo
     m_rightCol->addWidget(m_logToggle, 0, Qt::AlignLeft);
     m_rightCol->addWidget(m_log);
     m_rightCol->addStretch(1);
-    connect(m_logToggle, &QToolButton::toggled, this, [this](bool on) { m_log->setVisible(on); m_logToggle->setText(on ? "Journal ▾" : "Journal ▸"); });
+    connect(m_logToggle, &QToolButton::toggled, this, [this](bool on) { m_log->setVisible(on); m_logToggle->setText(on ? tr("Journal ▾") : tr("Journal ▸")); });
 
     // ---- zone défilante : plafonnée à la hauteur de la fenêtre, pour que la barre du bas reste toujours accessible
     auto* body = new QWidget;
@@ -420,18 +420,18 @@ SdDialogBase::SdDialogBase(const QString& title, QWidget* parent) : MovableDialo
     m_root->addWidget(m_seedInfo);
 
     auto* bottom = new QHBoxLayout;
-    m_generate = button("Générer");
+    m_generate = button(tr("Générer"));
     m_generate->setStyleSheet("font-weight:bold;");
-    m_cancel = button("Annuler le calcul");
+    m_cancel = button(tr("Annuler le calcul"));
     m_cancel->setEnabled(false);
     m_bar = new QProgressBar;
     m_bar->setRange(0, 1);
     m_bar->setValue(0);
     m_bar->setTextVisible(false);
     m_bar->setMinimumWidth(120);
-    m_ok = button("Appliquer");
+    m_ok = button(tr("Appliquer"));
     m_ok->setEnabled(false);
-    m_cancelDlg = button("Fermer");
+    m_cancelDlg = button(tr("Fermer"));
     bottom->addWidget(m_generate);
     bottom->addWidget(m_cancel);
     bottom->addWidget(m_bar, 1);
@@ -546,13 +546,13 @@ bool SdDialogBase::generate() {
     m_seedInfo->clear();
     setStatus("", false);
     setRunning(true);
-    m_stage->setText("Démarrage…");
+    m_stage->setText(tr("Démarrage…"));
     connect(job, &Sd::Job::stageChanged, this, [this](const QString& s) { m_stage->setText(s); });
     connect(job, &Sd::Job::progress, this, [this](int step, int steps, double sps) {
         m_bar->setRange(0, std::max(1, steps));
         m_bar->setValue(std::clamp(step, 0, steps));
-        QString t = QString("Étape %1 / %2").arg(step).arg(steps);
-        if (sps > 0.0) t += QString(" — %1 s/étape — reste ≈ %2 s").arg(sps, 0, 'f', 1).arg(int(std::lround((steps - step) * sps)));
+        QString t = tr("Étape %1 / %2").arg(step).arg(steps);
+        if (sps > 0.0) t += tr(" — %1 s/étape — reste ≈ %2 s").arg(sps, 0, 'f', 1).arg(int(std::lround((steps - step) * sps)));
         m_stage->setText(t);
     });
     connect(job, &Sd::Job::logLine, this, [this](int level, const QString& s) {
@@ -566,7 +566,7 @@ bool SdDialogBase::generate() {
 void SdDialogBase::cancelGeneration() {
     if (!running()) return;
     m_cancel->setEnabled(false);
-    m_stage->setText("Annulation en cours… (effective à la fin de l'étape de calcul en cours ; le chargement du modèle ne peut pas être interrompu)");
+    m_stage->setText(tr("Annulation en cours… (effective à la fin de l'étape de calcul en cours ; le chargement du modèle ne peut pas être interrompu)"));
     if (m_job) m_job->cancel();
 }
 
@@ -574,9 +574,9 @@ void SdDialogBase::onResult(const Sd::Result& res) {
     m_active = false;
     setRunning(false);
     if (res.cancelled) {
-        setStatus("Génération annulée.", false);
+        setStatus(tr("Génération annulée."), false);
     } else if (!res.ok) {
-        QString msg = res.error.isEmpty() ? QString("Échec de la génération.") : res.error;
+        QString msg = res.error.isEmpty() ? tr("Échec de la génération.") : res.error;
         setStatus(msg, true);
         if (!res.logTail.isEmpty()) { m_logToggle->setChecked(true); }
     } else {
@@ -589,9 +589,9 @@ void SdDialogBase::onResult(const Sd::Result& res) {
         }
         m_list->setCurrentRow(0);
         m_seed->setValue(int(std::min<qint64>(res.seed, 2147483647)));
-        m_seedInfo->setText(QString("Graine utilisée : %1 (décochez « Aléatoire » pour la réutiliser)").arg(res.seed));
-        setStatus(QString("%1 image(s) générée(s) en %2 s%3.").arg(m_results.size()).arg(res.seconds, 0, 'f', 1)
-                      .arg(res.modelVersion.isEmpty() ? QString() : " — modèle : " + res.modelVersion), false);
+        m_seedInfo->setText(tr("Graine utilisée : %1 (décochez « Aléatoire » pour la réutiliser)").arg(res.seed));
+        setStatus(tr("%1 image(s) générée(s) en %2 s%3.").arg(m_results.size()).arg(res.seconds, 0, 'f', 1)
+                      .arg(res.modelVersion.isEmpty() ? QString() : tr(" — modèle : %1").arg(res.modelVersion)), false);
         m_ok->setEnabled(true);
         resultsReady();
     }
@@ -600,8 +600,8 @@ void SdDialogBase::onResult(const Sd::Result& res) {
 }
 
 void SdDialogBase::accept() {
-    if (running()) { setStatus("Un calcul est en cours : attendez sa fin ou annulez-le.", true); return; }
-    if (selectedImage().empty()) { setStatus("Générez d'abord une image.", true); return; }
+    if (running()) { setStatus(tr("Un calcul est en cours : attendez sa fin ou annulez-le."), true); return; }
+    if (selectedImage().empty()) { setStatus(tr("Générez d'abord une image."), true); return; }
     saveUi();
     aboutToClose();
     MovableDialog::accept();
@@ -622,12 +622,12 @@ void SdDialogBase::reject() {
 }
 
 // ============================================================================================ génération texte -> image
-SdGenerateDialog::SdGenerateDialog(Document* doc, QWidget* parent) : SdDialogBase("Générer une image (Stable Diffusion)", parent), m_doc(doc) {
+SdGenerateDialog::SdGenerateDialog(Document* doc, QWidget* parent) : SdDialogBase(tr("Générer une image (Stable Diffusion)"), parent), m_doc(doc) {
     QSettings s = uiSettings();
     m_w = new QSpinBox; m_w->setRange(64, 2048); m_w->setSingleStep(8); m_w->setValue(s.value(key("w"), 512).toInt());
     m_h = new QSpinBox; m_h->setRange(64, 2048); m_h->setSingleStep(8); m_h->setValue(s.value(key("h"), 512).toInt());
     m_w->setSuffix(" px"); m_h->setSuffix(" px");
-    m_w->setToolTip("Multiple de 8. Restez proche de la taille d'entraînement du modèle (512 pour SD 1.x, 1024 pour SDXL) : au-delà, les images se répètent ou se déforment.");
+    m_w->setToolTip(tr("Multiple de 8. Restez proche de la taille d'entraînement du modèle (512 pour SD 1.x, 1024 pour SDXL) : au-delà, les images se répètent ou se déforment."));
     auto* sizeRow = new QVBoxLayout;
     auto* size = new QHBoxLayout;
     size->addWidget(m_w);
@@ -636,7 +636,7 @@ SdGenerateDialog::SdGenerateDialog(Document* doc, QWidget* parent) : SdDialogBas
     size->addStretch();
     sizeRow->addLayout(size);
     if (doc) {
-        auto* fit = button("Proportions du document");
+        auto* fit = button(tr("Proportions du document"));
         connect(fit, &QPushButton::clicked, this, [this] {
             const double s = 1024.0 / std::max(m_doc->size().width(), m_doc->size().height());
             const double k = std::min(1.0, s);
@@ -645,21 +645,21 @@ SdGenerateDialog::SdGenerateDialog(Document* doc, QWidget* parent) : SdDialogBas
         });
         sizeRow->addWidget(fit, 0, Qt::AlignLeft);
     }
-    specificForm()->addRow("Taille :", sizeRow);
+    specificForm()->addRow(tr("Taille :"), sizeRow);
 
     m_placement = new QComboBox;
-    m_placement->addItems({"Centrée, taille d'origine", "Ajustée au document", "Remplir le document (rognée)", "Dans la sélection"});
-    m_placement->setToolTip("Centrée : taille d'origine. Ajustée : tient en entier (proportions conservées). Remplir : couvre tout le document (rognée). Dans la sélection : découpée selon sa forme.");
+    m_placement->addItems({tr("Centrée, taille d'origine"), tr("Ajustée au document"), tr("Remplir le document (rognée)"), tr("Dans la sélection")});
+    m_placement->setToolTip(tr("Centrée : taille d'origine. Ajustée : tient en entier (proportions conservées). Remplir : couvre tout le document (rognée). Dans la sélection : découpée selon sa forme."));
     m_placement->setCurrentIndex(std::clamp(s.value(key("placement"), 1).toInt(), 0, 3));
-    if (doc) specificForm()->addRow("Placement :", m_placement);
-    else specificForm()->addRow(new QLabel("Aucun document ouvert : l'image générée créera un nouveau document."));
+    if (doc) specificForm()->addRow(tr("Placement :"), m_placement);
+    else specificForm()->addRow(new QLabel(tr("Aucun document ouvert : l'image générée créera un nouveau document.")));
 
     m_preview = new QLabel;
     m_preview->setFixedSize(320, 220);
     m_preview->setAlignment(Qt::AlignCenter);
     m_preview->setStyleSheet("background:#1e1e1e;border:1px solid #555;");
     rightColumn()->insertWidget(0, m_preview);
-    finishLayout(doc ? "Ajouter au document" : "Créer un document");
+    finishLayout(doc ? tr("Ajouter au document") : tr("Créer un document"));
 }
 
 Sd::Placement SdGenerateDialog::placement() const { return Sd::Placement(m_placement->currentIndex()); }
@@ -685,7 +685,7 @@ void SdGenerateDialog::aboutToClose() {
 
 // ============================================================================================ inpainting sur la sélection
 SdInpaintDialog::SdInpaintDialog(Document* doc, QWidget* parent)
-    : SdDialogBase("Inpainting sur la sélection (Stable Diffusion)", parent), m_doc(doc), m_layer(doc->activeLayer()) {
+    : SdDialogBase(tr("Inpainting sur la sélection (Stable Diffusion)"), parent), m_doc(doc), m_layer(doc->activeLayer()) {
     m_orig = m_layer->image;       // en-tête partagé : l'aperçu remplace `image`, jamais de modification sur place
     QSettings s = uiSettings();
 
@@ -697,27 +697,27 @@ SdInpaintDialog::SdInpaintDialog(Document* doc, QWidget* parent)
     m_res = new QComboBox;
     for (int v : {384, 512, 640, 768, 1024, 1536}) m_res->addItem(QString("%1 px").arg(v), v);
     m_res->setCurrentIndex(std::max(0, m_res->findData(s.value(key("res"), 512))));
-    m_res->setToolTip("Taille de l'image envoyée au modèle : 512 pour SD 1.x, 1024 pour SDXL. Plus grand = plus lent et plus de mémoire.");
+    m_res->setToolTip(tr("Taille de l'image envoyée au modèle : 512 pour SD 1.x, 1024 pour SDXL. Plus grand = plus lent et plus de mémoire."));
     m_context = new QSpinBox; m_context->setRange(0, 300); m_context->setSuffix(" %"); m_context->setValue(s.value(key("ctx"), 50).toInt());
-    m_context->setToolTip("Marge d'image autour de la zone, donnée au modèle pour qu'il raccorde le contenu à son environnement.");
+    m_context->setToolTip(tr("Marge d'image autour de la zone, donnée au modèle pour qu'il raccorde le contenu à son environnement."));
     m_expand = new QSpinBox; m_expand->setRange(0, 64); m_expand->setSuffix(" px"); m_expand->setValue(s.value(key("expand"), 4).toInt());
-    m_expand->setToolTip("Agrandit la zone à régénérer pour ne laisser aucun liseré de l'ancien contenu.");
+    m_expand->setToolTip(tr("Agrandit la zone à régénérer pour ne laisser aucun liseré de l'ancien contenu."));
     m_feather = new QSpinBox; m_feather->setRange(0, 64); m_feather->setSuffix(" px"); m_feather->setValue(s.value(key("feather"), 6).toInt());
-    m_feather->setToolTip("Adoucit le raccord entre le contenu régénéré et l'image d'origine.");
+    m_feather->setToolTip(tr("Adoucit le raccord entre le contenu régénéré et l'image d'origine."));
     m_strength = new SliderSpin(0.05, 1.0, s.value(key("strength"), 0.8).toDouble(), 2);
-    m_strength->setToolTip("1.0 = remplacer complètement le contenu de la zone ; plus bas = rester proche de l'existant (retouche légère).");
-    m_merged = new QCheckBox("Fusionner tous les calques visibles");
+    m_strength->setToolTip(tr("1.0 = remplacer complètement le contenu de la zone ; plus bas = rester proche de l'existant (retouche légère)."));
+    m_merged = new QCheckBox(tr("Fusionner tous les calques visibles"));
     m_merged->setChecked(s.value(key("merged"), true).toBool());
-    m_livePreview = new QCheckBox("Aperçu en direct sur le calque");
+    m_livePreview = new QCheckBox(tr("Aperçu en direct sur le calque"));
     m_livePreview->setChecked(true);
-    specificForm()->addRow("Résolution de travail :", m_res);
-    specificForm()->addRow("Contexte autour de la zone :", m_context);
-    specificForm()->addRow("Étendre la zone de :", m_expand);
-    specificForm()->addRow("Raccord adouci de :", m_feather);
-    specificForm()->addRow("Force de régénération :", m_strength);
+    specificForm()->addRow(tr("Résolution de travail :"), m_res);
+    specificForm()->addRow(tr("Contexte autour de la zone :"), m_context);
+    specificForm()->addRow(tr("Étendre la zone de :"), m_expand);
+    specificForm()->addRow(tr("Raccord adouci de :"), m_feather);
+    specificForm()->addRow(tr("Force de régénération :"), m_strength);
     specificForm()->addRow(m_merged);
     specificForm()->addRow(m_livePreview);
-    finishLayout("Appliquer à la sélection");
+    finishLayout(tr("Appliquer à la sélection"));
 
     m_infoTimer = new QTimer(this);
     m_infoTimer->setSingleShot(true);
@@ -742,17 +742,17 @@ void SdInpaintDialog::refreshInfo() {
     Sd::InpaintPlan plan;
     QString err;
     if (!Sd::planInpaint(m_orig, m_doc->selection(), planParams(), &plan, &err)) { m_info->setText("⚠ " + err); return; }
-    QString t = QString("Zone à régénérer : %1 × %2 px → recadrage %3 × %4 px → image de travail %5 × %6 px.")
+    QString t = tr("Zone à régénérer : %1 × %2 px → recadrage %3 × %4 px → image de travail %5 × %6 px.")
                     .arg(plan.region.width).arg(plan.region.height).arg(plan.crop.width).arg(plan.crop.height).arg(plan.work.width).arg(plan.work.height);
     if (std::max(plan.crop.width, plan.crop.height) > 2 * std::max(plan.work.width, plan.work.height))
-        t += "\n⚠ La zone est bien plus grande que la résolution de travail : le détail sera réduit. Augmentez la résolution ou sélectionnez une zone plus petite.";
-    t += "\nLes réglages de zone s'appliquent à la prochaine génération.";
+        t += tr("\n⚠ La zone est bien plus grande que la résolution de travail : le détail sera réduit. Augmentez la résolution ou sélectionnez une zone plus petite.");
+    t += tr("\nLes réglages de zone s'appliquent à la prochaine génération.");
     m_info->setText(t);
 }
 
 bool SdInpaintDialog::buildRequest(Sd::Request& r, QString* error) {
     restorePreview();                       // le contexte doit être l'image d'origine, pas un aperçu précédent
-    if (!m_doc->hasSelection()) { if (error) *error = "Aucune sélection."; return false; }
+    if (!m_doc->hasSelection()) { if (error) *error = tr("Aucune sélection."); return false; }
     const cv::Mat source = m_merged->isChecked() ? m_doc->compositeCopy() : m_orig;
     Sd::InpaintPlan plan;
     if (!Sd::planInpaint(source, m_doc->selection(), planParams(), &plan, error)) return false;
